@@ -26,9 +26,12 @@ Inference stays on your server. No per-token fees. Doesn't consume Copilot premi
 
 ## Key Settings
 
+Provider endpoints, API keys, and custom headers are configured per profile using the **9Router: Manage Providers** command or via VS Code's native Copilot Chat provider settings.
+
+Global settings:
+
 | Setting                                          | Default                     | What it does                                            |
 | ------------------------------------------------ | --------------------------- | ------------------------------------------------------- |
-| `9router-for-github-copilot.serverUrl`           | `http://localhost:20128/v1` | Your inference server base URL                          |
 | `9router-for-github-copilot.defaultMaxTokens`    | `262144`                    | Fallback context window                                 |
 | `9router-for-github-copilot.enableToolCalling`   | `true`                      | Allow agent tools (file ops, terminal, etc.)            |
 | `9router-for-github-copilot.agentTemperature`    | `0`                         | Tool-call stability (lower = stricter)                  |
