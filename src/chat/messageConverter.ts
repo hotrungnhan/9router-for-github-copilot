@@ -208,9 +208,5 @@ export function convertMessages(
   options: MessageConverterOptions,
   log: ConverterLogger = NOOP_LOGGER
 ): OpenAIMessage[] {
-  const result: OpenAIMessage[] = [];
-  for (const msg of messages) {
-    result.push(...convertMessage(msg, options, log));
-  }
-  return result;
+  return messages.flatMap((msg) => convertMessage(msg, options, log));
 }

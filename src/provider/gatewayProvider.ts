@@ -1,9 +1,4 @@
 import * as vscode from 'vscode';
-import {
-  FrameworkConfigOverride,
-  readFrameworkConfiguration,
-  resolveApiKey,
-} from '../config/frameworkConfig';
 import { estimateTextTokens } from '../chat/tokenBudget';
 import { diagnoseModelFetchError } from '../chat/errorDiagnostics';
 import { InlineCompletionBackend } from '../completions/inlineCompletionProvider';
@@ -22,10 +17,11 @@ import {
   formatCapabilityLabels,
   formatContextLabel,
 } from '../status/statusSnapshot';
+import { GatewayConfig } from '../config/gatewayConfig';
 import { RequestStateEvent } from './chatRequestHandler';
 import { ConfigService } from './configService';
 import { ProfileStore } from '../profiles/profileStore';
-import { Profile, DEFAULT_PROFILE_ID } from '../profiles/profileTypes';
+import { Profile } from '../profiles/profileTypes';
 import { ProfileRuntime } from './profileRuntime';
 import { formatExposedModelId, parseModelTarget } from '../profiles/modelNamespace';
 import { promptOpenSettings } from './notifications';
@@ -33,14 +29,14 @@ import { countMessageTokens } from './vscodeParts';
 
 export type { RequestStateEvent } from './chatRequestHandler';
 
-const MODEL_AFFECTING_KEYS: readonly string[] = [
+const MODEL_AFFECTING_KEYS = [
   '9router-for-github-copilot.requestTimeout',
   '9router-for-github-copilot.defaultMaxTokens',
   '9router-for-github-copilot.defaultMaxOutputTokens',
   '9router-for-github-copilot.enableImageInput',
   '9router-for-github-copilot.enableToolCalling',
   '9router-for-github-copilot.modelContextWindows',
-];
+] as const;
 
 export class GatewayProvider
   implements vscode.LanguageModelChatProvider, InlineCompletionBackend
@@ -49,7 +45,6 @@ export class GatewayProvider
   private readonly configService: ConfigService;
   private readonly profileStore: ProfileStore;
   private readonly runtimes: Map<string, ProfileRuntime> = new Map();
-  private readonly frameworkOverride: FrameworkConfigOverride = {};
 
   private readonly _onDidChangeLanguageModelChatInformation = new vscode.EventEmitter<void>();
   readonly onDidChangeLanguageModelChatInformation = this._onDidChangeLanguageModelChatInformation.event;
@@ -71,7 +66,7 @@ export class GatewayProvider
 
   constructor(context: vscode.ExtensionContext) {
     this.outputChannel = vscode.window.createOutputChannel('9Router');
-    const log = (msg: string): void => this.outputChannel.appendLine(msg);
+    const log = (msg: string) => this.outputChannel.appendLine(msg);
 
     this.profileStore = new ProfileStore(context.secrets, {
       log,
@@ -88,7 +83,7 @@ export class GatewayProvider
       this._onDidChangeLanguageModelChatInformation,
       this._onDidChangeRequestState,
       this._onDidChangeStatusSnapshot,
-      vscode.workspace.onDidChangeConfiguration((e: vscode.ConfigurationChangeEvent) => {
+      vscode.workspace.onDidChangeConfiguration((e) => {
         if (!e.affectsConfiguration('9router-for-github-copilot')) {
           return;
         }
@@ -98,7 +93,7 @@ export class GatewayProvider
           this._onDidChangeLanguageModelChatInformation.fire();
         }
       }),
-      context.secrets.onDidChange((e: vscode.SecretStorageChangeEvent) => {
+      context.secrets.onDidChange((e) => {
         if (!this.profileStore.ownsSecretKey(e.key)) {
           return;
         }
@@ -135,15 +130,8 @@ export class GatewayProvider
     }
 
     for (const profile of profiles) {
-      const isDefault = profile.id === DEFAULT_PROFILE_ID;
-      const effectiveApiKey = isDefault
-        ? resolveApiKey(this.frameworkOverride, profile.apiKey)
-        : (profile.apiKey ?? '');
-
-      const effectiveUrl =
-        isDefault && this.frameworkOverride.serverUrl
-          ? this.frameworkOverride.serverUrl
-          : profile.serverUrl;
+      const effectiveApiKey = profile.apiKey ?? '';
+      const effectiveUrl = profile.serverUrl;
 
       const effectiveProfile: Profile = {
         ...profile,
@@ -173,6 +161,11 @@ export class GatewayProvider
     }
 
     this._onDidChangeStatusSnapshot.fire();
+    this._onDidChangeLanguageModelChatInformation.fire();
+  }
+
+  public log(msg: string): void {
+    this.outputChannel.appendLine(msg);
   }
 
   public refreshModels(): void {
@@ -190,19 +183,20 @@ export class GatewayProvider
   }
 
   async provideLanguageModelChatInformation(
-    options: { silent: boolean; configuration?: { readonly [key: string]: unknown } },
+    options: vscode.PrepareLanguageModelChatModelOptions,
     token: vscode.CancellationToken
   ): Promise<vscode.LanguageModelChatInformation[]> {
-    this.applyFrameworkConfiguration(options.configuration);
-
     const enabledProfiles = this.profileStore.getEnabledProfiles();
     if (enabledProfiles.length === 0) {
+      if (!options.silent) {
+        void vscode.commands.executeCommand('9router-for-github-copilot.manage');
+      }
       return [];
     }
 
     const namespaceEnabled = enabledProfiles.length > 1;
-    const allModels: vscode.LanguageModelChatInformation[] = [];
-    const errors: Array<{ profile: Profile; error: string }> = [];
+    const errors: { profile: Profile; error: string }[] = [];
+    const profileModels: Array<{ profile: Profile; models: vscode.LanguageModelChatInformation[] }> = [];
 
     await Promise.all(
       enabledProfiles.map(async (profile) => {
@@ -215,16 +209,7 @@ export class GatewayProvider
         if (outcome.error) {
           errors.push({ profile, error: outcome.error });
         }
-
-        for (const rawModel of outcome.models) {
-          const exposedId = formatExposedModelId(profile.id, rawModel.id, namespaceEnabled);
-          allModels.push({
-            ...rawModel,
-            id: exposedId,
-            detail: profile.name,
-            tooltip: `${rawModel.tooltip ? `${rawModel.tooltip}\n\n` : ''}**Provider Profile:** ${profile.name}`,
-          });
-        }
+        profileModels.push({ profile, models: outcome.models });
       })
     );
 
@@ -237,29 +222,32 @@ export class GatewayProvider
       }
     }
 
+    // Disambiguate duplicate model names across profiles (e.g. "Qwen 2.5 Coder (Local)" vs "(Cloud)")
+    const nameCounts = new Map<string, number>();
+    for (const { models } of profileModels) {
+      for (const m of models) {
+        nameCounts.set(m.name, (nameCounts.get(m.name) ?? 0) + 1);
+      }
+    }
+
+    const allModels: vscode.LanguageModelChatInformation[] = [];
+    for (const { profile, models } of profileModels) {
+      for (const rawModel of models) {
+        const exposedId = formatExposedModelId(profile.id, rawModel.id, namespaceEnabled);
+        const hasDuplicate = (nameCounts.get(rawModel.name) ?? 0) > 1;
+        const displayName = hasDuplicate ? `${rawModel.name} (${profile.name})` : rawModel.name;
+
+        allModels.push({
+          ...rawModel,
+          id: exposedId,
+          name: displayName,
+          detail: profile.name,
+          tooltip: `${rawModel.tooltip ? `${rawModel.tooltip}\n\n` : ''}**Provider Profile:** ${profile.name}`,
+        });
+      }
+    }
+
     return allModels;
-  }
-
-  private applyFrameworkConfiguration(
-    configuration: { readonly [key: string]: unknown } | undefined
-  ): void {
-    const next = readFrameworkConfiguration(configuration);
-    let changed = false;
-
-    if (next.apiKey !== undefined && next.apiKey !== this.frameworkOverride.apiKey) {
-      this.frameworkOverride.apiKey = next.apiKey;
-      changed = true;
-    }
-    if (next.serverUrl !== undefined && next.serverUrl !== this.frameworkOverride.serverUrl) {
-      this.frameworkOverride.serverUrl = next.serverUrl;
-      changed = true;
-    }
-
-    if (changed) {
-      this.outputChannel.appendLine('Profile updated from VS Code framework configuration; reloading.');
-      this.syncRuntimes();
-      this.refreshModels();
-    }
   }
 
   async provideLanguageModelChatResponse(
@@ -279,23 +267,15 @@ export class GatewayProvider
       throw new Error(`9Router: Profile '${target.profileId}' not found or disabled.`);
     }
 
-    const rawModel: vscode.LanguageModelChatInformation = {
-      ...model,
-      id: target.rawModelId,
-    };
-
+    const rawModel = { ...model, id: target.rawModelId };
     return runtime.chatHandler.handle(rawModel, messages, options, progress, token);
   }
 
   async provideTokenCount(
     _model: vscode.LanguageModelChatInformation,
-    text: string | vscode.LanguageModelChatMessage,
-    _token: vscode.CancellationToken
+    text: string | vscode.LanguageModelChatMessage
   ): Promise<number> {
-    if (typeof text === 'string') {
-      return estimateTextTokens(text);
-    }
-    return countMessageTokens(text);
+    return typeof text === 'string' ? estimateTextTokens(text) : countMessageTokens(text);
   }
 
   private recordCompletedRequest(
@@ -356,16 +336,13 @@ export class GatewayProvider
         hasAnySuccess = true;
       }
 
-      let profileConnState: ConnectionState = 'unknown';
-      if (lastError) {
-        profileConnState = 'error';
-      } else if (lastSuccess === undefined) {
-        profileConnState = 'unknown';
-      } else if (cached.length === 0) {
-        profileConnState = 'noModels';
-      } else {
-        profileConnState = 'ok';
-      }
+      const connectionState: ConnectionState = lastError
+        ? 'error'
+        : lastSuccess === undefined
+          ? 'unknown'
+          : cached.length === 0
+            ? 'noModels'
+            : 'ok';
 
       profileSummaries.push({
         id: profile.id,
@@ -373,7 +350,7 @@ export class GatewayProvider
         serverUrl: profile.serverUrl,
         enabled: profile.enabled,
         modelCount: cached.length,
-        connectionState: profileConnState,
+        connectionState,
         errorMessage: lastError,
       });
 
@@ -392,20 +369,16 @@ export class GatewayProvider
       }
     }
 
-    let overallState: ConnectionState = 'unknown';
-    if (hasAnyError && !hasAnySuccess) {
-      overallState = 'error';
-    } else if (hasAnySuccess && allEmpty) {
-      overallState = 'noModels';
-    } else if (hasAnySuccess) {
-      overallState = 'ok';
-    }
+    const overallState: ConnectionState = hasAnyError && !hasAnySuccess
+      ? 'error'
+      : hasAnySuccess && allEmpty
+        ? 'noModels'
+        : hasAnySuccess
+          ? 'ok'
+          : 'unknown';
 
     const defaultProfile = this.profileStore.getDefaultProfile();
-    const defaultRuntime = this.runtimes.get(defaultProfile.id);
-    const globalConfig = defaultRuntime
-      ? defaultRuntime.getConfig()
-      : this.configService.loadForProfile(defaultProfile);
+    const globalConfig = this.getDefaultConfig();
 
     const snapshot: StatusSnapshot = {
       host:
@@ -434,16 +407,18 @@ export class GatewayProvider
     return snapshot;
   }
 
-  public isInlineCompletionEnabled(): boolean {
+  private getDefaultConfig(): GatewayConfig {
     const defaultProfile = this.profileStore.getDefaultProfile();
-    const runtime = this.runtimes.get(defaultProfile.id);
-    return runtime?.getConfig().enableInlineCompletion ?? false;
+    return this.runtimes.get(defaultProfile.id)?.getConfig()
+      ?? this.configService.loadForProfile(defaultProfile);
+  }
+
+  public isInlineCompletionEnabled(): boolean {
+    return this.getDefaultConfig().enableInlineCompletion;
   }
 
   public getInlineCompletionDebounceMs(): number {
-    const defaultProfile = this.profileStore.getDefaultProfile();
-    const runtime = this.runtimes.get(defaultProfile.id);
-    return runtime?.getConfig().inlineCompletionDebounce ?? 300;
+    return this.getDefaultConfig().inlineCompletionDebounce;
   }
 
   public async provideInlineCompletion(
@@ -451,24 +426,11 @@ export class GatewayProvider
     textAfter: string,
     token: vscode.CancellationToken
   ): Promise<string | undefined> {
-    const defaultProfile = this.profileStore.getDefaultProfile();
-    const defaultRuntime = this.runtimes.get(defaultProfile.id);
-    const targetProfileId = defaultRuntime?.getConfig().inlineCompletionProvider?.trim();
+    const targetProfileId = this.getDefaultConfig().inlineCompletionProvider?.trim();
+    const firstEnabled = this.profileStore.getEnabledProfiles()[0];
+    const runtime = (targetProfileId ? this.runtimes.get(targetProfileId) : undefined)
+      ?? (firstEnabled ? this.runtimes.get(firstEnabled.id) : undefined);
 
-    let runtime: ProfileRuntime | undefined;
-    if (targetProfileId) {
-      runtime = this.runtimes.get(targetProfileId);
-    }
-    if (!runtime) {
-      const firstEnabled = this.profileStore.getEnabledProfiles()[0];
-      if (firstEnabled) {
-        runtime = this.runtimes.get(firstEnabled.id);
-      }
-    }
-
-    if (!runtime) {
-      return undefined;
-    }
-    return runtime.inlineCompletions.provideCompletion(textBefore, textAfter, token);
+    return runtime?.inlineCompletions.provideCompletion(textBefore, textAfter, token);
   }
 }

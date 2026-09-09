@@ -63,10 +63,10 @@ function buildHeaderQuickPickItems(headerNames: readonly string[]): HeaderQuickP
       kind: vscode.QuickPickItemKind.Separator,
       action: 'done',
     },
-    ...headerNames.map<HeaderQuickPickItem>((name) => ({
+    ...headerNames.map((name) => ({
       label: name,
       description: 'Edit or remove (value hidden)',
-      action: 'edit',
+      action: 'edit' as const,
       headerName: name,
     }))
   );

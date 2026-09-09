@@ -3,6 +3,7 @@ import { GatewayProvider } from './provider/gatewayProvider';
 import { GatewayInlineCompletionProvider } from './completions/inlineCompletionProvider';
 import { StatusBarManager } from './status/statusBarManager';
 import { registerCommands } from './commands';
+import { cleanupLegacyChatLanguageModelsGroups } from './profiles/groupSync';
 
 const STATUS_BAR_PROBE_DELAY_MS = 1500;
 
@@ -15,6 +16,9 @@ const STATUS_BAR_PROBE_DELAY_MS = 1500;
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const provider = new GatewayProvider(context);
   await provider.loadSecrets();
+
+  // Clean up any stale chatLanguageModels.json entries left by earlier versions
+  await cleanupLegacyChatLanguageModelsGroups((msg) => provider.log(msg));
 
   context.subscriptions.push(
     vscode.lm.registerLanguageModelChatProvider('9router-github-copilot', provider),
@@ -100,6 +104,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push({ dispose: () => clearTimeout(initialProbeTimer) });
 
   registerCommands(context, provider, statusManager, refreshStatusBar);
+
+  // Copilot Chat is built into VS Code; activate opportunistically before initial model refresh
+  try {
+    await vscode.extensions.getExtension('github.copilot-chat')?.activate();
+  } catch {
+    // Copilot Chat may not be installed or enabled
+  }
+
+  // Trigger initial model cache refresh
+  provider.refreshModels();
 }
 
 /**

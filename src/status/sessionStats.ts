@@ -61,18 +61,12 @@ export function accumulateUsage(stats: SessionStats, usage: TokenUsage): Session
 }
 
 function sanitize(n: number): number {
-  if (!Number.isFinite(n) || n < 0) {
-    return 0;
-  }
-  return Math.floor(n);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
 }
 
 /** Average tokens per request that actually reported usage, or 0 when none did. */
 export function averageTokensPerRequest(stats: SessionStats): number {
-  if (stats.requestsWithUsage === 0) {
-    return 0;
-  }
-  return Math.round(stats.totalTokens / stats.requestsWithUsage);
+  return stats.requestsWithUsage === 0 ? 0 : Math.round(stats.totalTokens / stats.requestsWithUsage);
 }
 
 /**

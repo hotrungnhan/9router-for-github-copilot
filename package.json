@@ -55,23 +55,7 @@
       {
         "vendor": "9router-github-copilot",
         "displayName": "9Router",
-        "managementCommand": "9router-for-github-copilot.manage",
-        "configuration": {
-          "properties": {
-            "serverUrl": {
-              "type": "string",
-              "title": "Server URL",
-              "default": "http://localhost:20128/v1",
-              "description": "Inference server URL (OpenAI API compatible endpoint). Saved to your default provider profile."
-            },
-            "apiKey": {
-              "type": "string",
-              "secret": true,
-              "title": "API Key",
-              "description": "Optional bearer token sent to the inference server. Leave blank for unauthenticated local servers (vLLM, Ollama, llama.cpp). Stored by VS Code; saved to your default provider profile."
-            }
-          }
-        }
+        "managementCommand": "9router-for-github-copilot.manage"
       }
     ],
     "commands": [

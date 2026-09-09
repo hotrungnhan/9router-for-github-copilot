@@ -68,10 +68,7 @@ export interface StatusSnapshot {
  * ("131K ctx", "8K ctx", or `''` when unknown).
  */
 export function formatContextLabel(contextTokens: number | undefined): string {
-  if (!contextTokens || contextTokens <= 0) {
-    return '';
-  }
-  return `${formatTokenCount(contextTokens)} ctx`;
+  return contextTokens && contextTokens > 0 ? `${formatTokenCount(contextTokens)} ctx` : '';
 }
 
 /**

@@ -131,13 +131,11 @@ export function buildModelInfo({
   const { provider } = parseModelId(model.id);
   const friendlyName = friendlyModelName(model.id);
 
-  const tooltipParts: string[] = [];
-  if (provider) {
-    tooltipParts.push(`**Provider:** ${provider}`);
-  }
-  tooltipParts.push(`**Model ID:** \`${model.id}\``);
-  tooltipParts.push(`**Name:** ${friendlyName}`);
-  const tooltip = tooltipParts.join('  \n');
+  const tooltip = [
+    provider && `**Provider:** ${provider}`,
+    `**Model ID:** \`${model.id}\``,
+    `**Name:** ${friendlyName}`,
+  ].filter(Boolean).join('  \n');
 
   // Build the "Thinking Effort" sub-picker for reasoning-capable models.
   // The schema follows microsoft/vscode#315181: the picker renders a

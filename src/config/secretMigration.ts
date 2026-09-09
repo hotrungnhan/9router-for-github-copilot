@@ -74,7 +74,7 @@ export function parseCustomHeadersJson(
     return {};
   }
   const result: Record<string, string> = {};
-  for (const [name, value] of Object.entries(parsed as Record<string, unknown>)) {
+  for (const [name, value] of Object.entries(parsed)) {
     if (typeof value === 'string' && name.length > 0) {
       result[name] = value;
     }
