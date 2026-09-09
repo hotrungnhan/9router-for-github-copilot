@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import {
   VENDOR_ID,
   hasChatLanguageModelsGroups,
-  getChatLanguageModelsGroupsForVendor,
+  cleanupLegacyChatLanguageModelsGroups,
   getChatLanguageModelsPath,
 } from '../groupSync';
 
@@ -22,8 +22,8 @@ describe('groupSync', () => {
     assert.strictEqual(typeof hasGroups, 'boolean');
   });
 
-  it('retrieves group names without crashing', () => {
-    const groups = getChatLanguageModelsGroupsForVendor();
-    assert.ok(Array.isArray(groups));
+  it('runs cleanupLegacyChatLanguageModelsGroups without crashing', async () => {
+    const result = await cleanupLegacyChatLanguageModelsGroups();
+    assert.strictEqual(typeof result, 'boolean');
   });
 });

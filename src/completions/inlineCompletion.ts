@@ -42,11 +42,9 @@ export function extractFimContext(
   maxSuffixChars: number = DEFAULT_MAX_SUFFIX_CHARS
 ): FimContext {
   const prefix = textBefore.length > maxPrefixChars
-    ? textBefore.slice(textBefore.length - maxPrefixChars)
+    ? textBefore.slice(-maxPrefixChars)
     : textBefore;
-  const suffix = textAfter.length > maxSuffixChars
-    ? textAfter.slice(0, maxSuffixChars)
-    : textAfter;
+  const suffix = textAfter.slice(0, maxSuffixChars);
   return { prefix, suffix };
 }
 

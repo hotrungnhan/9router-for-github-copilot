@@ -12,23 +12,23 @@
  */
 
 import {
-    LegacyConfigAccessor,
-    SECRET_KEYS,
-    SecretAccessor,
-    migrateLegacySecrets,
-    parseCustomHeadersJson,
+  LegacyConfigAccessor,
+  SECRET_KEYS,
+  SecretAccessor,
+  migrateLegacySecrets,
+  parseCustomHeadersJson,
 } from '../config/secretMigration';
 import {
-    DEFAULT_PROFILE_ID,
-    DEFAULT_PROFILE_NAME,
-    DEFAULT_PROFILE_URL,
-    PROFILES_SECRET_KEY,
-    Profile,
+  DEFAULT_PROFILE_ID,
+  DEFAULT_PROFILE_NAME,
+  DEFAULT_PROFILE_URL,
+  PROFILES_SECRET_KEY,
+  Profile,
 } from './profileTypes';
 
 export interface ProfileMigrationResult {
-    migrated: boolean;
-    profileCreated?: Profile;
+  migrated: boolean;
+  profileCreated?: Profile;
 }
 
 /**
@@ -36,47 +36,47 @@ export interface ProfileMigrationResult {
  * Pure-ish: uses SecretAccessor and LegacyConfigAccessor interfaces for unit testability.
  */
 export async function migrateToProfiles(
-    config: LegacyConfigAccessor,
-    secrets: SecretAccessor,
-    log: (msg: string) => void = () => { /* no-op */ }
+  config: LegacyConfigAccessor,
+  secrets: SecretAccessor,
+  log: (msg: string) => void = () => { /* no-op */ }
 ): Promise<ProfileMigrationResult> {
-    const existingBlob = await secrets.get(PROFILES_SECRET_KEY);
-    if (existingBlob) {
-        return { migrated: false };
-    }
+  const existingBlob = await secrets.get(PROFILES_SECRET_KEY);
+  if (existingBlob) {
+    return { migrated: false };
+  }
 
-    try {
-        await migrateLegacySecrets(config, secrets, log);
-    } catch (error) {
-        log(`Warning: legacy secret migration step encountered an error: ${error instanceof Error ? error.message : String(error)}`);
-    }
+  try {
+    await migrateLegacySecrets(config, secrets, log);
+  } catch (error) {
+    log(`Warning: legacy secret migration step encountered an error: ${error instanceof Error ? error.message : String(error)}`);
+  }
 
-    // Step 2: Harvest legacy values
-    const legacyApiKey = (await secrets.get(SECRET_KEYS.apiKey)) ?? '';
-    const legacyHeadersRaw = await secrets.get(SECRET_KEYS.customHeaders);
-    const legacyHeaders = parseCustomHeadersJson(legacyHeadersRaw, log);
-    const legacyServerUrl = config.get<string>('serverUrl', DEFAULT_PROFILE_URL);
+  // Step 2: Harvest legacy values
+  const legacyApiKey = (await secrets.get(SECRET_KEYS.apiKey)) ?? '';
+  const legacyHeadersRaw = await secrets.get(SECRET_KEYS.customHeaders);
+  const legacyHeaders = parseCustomHeadersJson(legacyHeadersRaw, log);
+  const legacyServerUrl = config.get<string>('serverUrl', DEFAULT_PROFILE_URL);
 
-    const defaultProfile: Profile = {
-        id: DEFAULT_PROFILE_ID,
-        name: DEFAULT_PROFILE_NAME,
-        serverUrl: legacyServerUrl.trim() || DEFAULT_PROFILE_URL,
-        apiKey: legacyApiKey.trim(),
-        customHeaders: legacyHeaders,
-        enabled: true,
-        createdAt: Date.now(),
-    };
+  const defaultProfile: Profile = {
+    id: DEFAULT_PROFILE_ID,
+    name: DEFAULT_PROFILE_NAME,
+    serverUrl: legacyServerUrl.trim() || DEFAULT_PROFILE_URL,
+    apiKey: legacyApiKey.trim(),
+    customHeaders: legacyHeaders,
+    enabled: true,
+    createdAt: Date.now(),
+  };
 
-    await secrets.store(PROFILES_SECRET_KEY, JSON.stringify([defaultProfile]));
-    log(`Migrated legacy server configuration to default profile (${defaultProfile.serverUrl}).`);
+  await secrets.store(PROFILES_SECRET_KEY, JSON.stringify([defaultProfile]));
+  log(`Migrated legacy server configuration to default profile (${defaultProfile.serverUrl}).`);
 
-    // Clean up legacy secret entries now that they are captured in the profile
-    try {
-        await secrets.delete(SECRET_KEYS.apiKey);
-        await secrets.delete(SECRET_KEYS.customHeaders);
-    } catch {
-        // Non-fatal if delete fails
-    }
+  // Clean up legacy secret entries now that they are captured in the profile
+  try {
+    await secrets.delete(SECRET_KEYS.apiKey);
+    await secrets.delete(SECRET_KEYS.customHeaders);
+  } catch {
+    // Non-fatal if delete fails
+  }
 
-    return { migrated: true, profileCreated: defaultProfile };
+  return { migrated: true, profileCreated: defaultProfile };
 }

@@ -70,16 +70,11 @@ export async function manageProvidersFlow(
       }
 
       const feats = summary?.features;
-      const featBadges: string[] = [];
-      if (feats?.toolCalling) {
-        featBadges.push('tools');
-      }
-      if (feats?.imageInput) {
-        featBadges.push('vision');
-      }
-      if (feats?.inlineCompletion) {
-        featBadges.push('inline');
-      }
+      const featBadges = [
+        feats?.toolCalling && 'tools',
+        feats?.imageInput && 'vision',
+        feats?.inlineCompletion && 'inline',
+      ].filter((badge): badge is string => Boolean(badge));
       const featInfo = featBadges.length > 0 ? ` · [${featBadges.join(', ')}]` : '';
 
       const headerCount = Object.keys(p.customHeaders ?? {}).length;

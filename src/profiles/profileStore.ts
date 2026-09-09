@@ -152,12 +152,12 @@ export class ProfileStore {
     }
     const prevLen = this.profiles.length;
     this.profiles = this.profiles.filter((p) => p.id !== id);
-    if (this.profiles.length !== prevLen) {
-      await this.persist();
-      this.deps.onDidUpdate();
-      return true;
+    if (this.profiles.length === prevLen) {
+      return false;
     }
-    return false;
+    await this.persist();
+    this.deps.onDidUpdate();
+    return true;
   }
 
   /**

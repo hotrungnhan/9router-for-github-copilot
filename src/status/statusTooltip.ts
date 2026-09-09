@@ -61,27 +61,20 @@ const TOOLTIP_MODEL_LIST_MAX = 8;
  */
 const PROGRESS_BAR_WIDTH = 40;
 
+const ESC_MAP: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+};
+
 /** HTML-escape user-controlled text. */
 export function esc(value: string | number | undefined | null): string {
   if (value === undefined || value === null) {
     return '';
   }
-  return String(value).replace(/[&<>"']/g, (c) => {
-    switch (c) {
-      case '&':
-        return '&amp;';
-      case '<':
-        return '&lt;';
-      case '>':
-        return '&gt;';
-      case '"':
-        return '&quot;';
-      case "'":
-        return '&#39;';
-      default:
-        return c;
-    }
-  });
+  return String(value).replace(/[&<>"']/g, (c) => ESC_MAP[c] ?? c);
 }
 
 /**

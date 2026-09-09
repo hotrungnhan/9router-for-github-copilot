@@ -279,26 +279,15 @@ export class ModelCatalog {
    * and cause context-length errors at the server.
    */
   public resolveModelMaxContext(model: LanguageModelChatInformation): number {
-    let context: number;
     const cached = this.contextByModelId.get(model.id);
-    if (cached && cached > 0) {
-      context = cached;
-    } else if (model.maxInputTokens && model.maxInputTokens > 0) {
-      // Fallback path: the model list hasn't been fetched yet in this session
-      // (e.g. VS Code routed a cached chat directly to the provider). Use the
-      // picker-facing input window, which equals totalContext after the
-      // provideLanguageModelChatInformation change.
-      context = model.maxInputTokens;
-    } else {
-      context = TOKEN_CONSTANTS.DEFAULT_CONTEXT_TOKENS;
-    }
-    // A size learned from the server's own overflow error is ground truth —
-    // it wins whenever it's smaller than what the model list claimed.
+    const context = (cached && cached > 0)
+      ? cached
+      : (model.maxInputTokens && model.maxInputTokens > 0)
+        ? model.maxInputTokens
+        : TOKEN_CONSTANTS.DEFAULT_CONTEXT_TOKENS;
+
     const learned = this.learnedContextByModelId.get(model.id);
-    if (learned !== undefined && learned < context) {
-      return learned;
-    }
-    return context;
+    return learned !== undefined && learned < context ? learned : context;
   }
 
   /**

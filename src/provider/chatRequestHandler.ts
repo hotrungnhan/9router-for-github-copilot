@@ -14,9 +14,8 @@ import {
   truncateMessagesToFit,
 } from '../chat/tokenBudget';
 import { tryRepairJson } from '../chat/jsonRepair';
-import { fillMissingRequiredProperties } from '../chat/toolSchema';
+import { fillMissingRequiredProperties, JsonSchema } from '../chat/toolSchema';
 import {
-  StreamChunk,
   StreamReporter,
   isEmptyStreamResult,
   streamResponse,
@@ -264,7 +263,7 @@ export class ChatRequestHandler {
       });
       const chunks = this.deps.client.streamChatCompletion(requestOptions, token);
       const stats = await streamResponse({
-        chunks: chunks as AsyncIterable<StreamChunk>,
+        chunks,
         reporter,
         isCancelled: () => token.isCancellationRequested,
         resolveToolCallArgs: (toolCall) => this.resolveToolCallArgs(toolCall, toolSchemas),
@@ -335,9 +334,9 @@ export class ChatRequestHandler {
     options: vscode.ProvideLanguageModelChatResponseOptions
   ): {
     tools: OpenAIToolDefinition[] | undefined;
-    schemas: Map<string, Record<string, unknown> | undefined>;
+    schemas: Map<string, JsonSchema | undefined>;
   } {
-    const schemas = new Map<string, Record<string, unknown> | undefined>();
+    const schemas = new Map<string, JsonSchema | undefined>();
     if (!config.enableToolCalling || !options.tools || options.tools.length === 0) {
       return { tools: undefined, schemas };
     }
@@ -346,12 +345,12 @@ export class ChatRequestHandler {
       this.deps.log(`Tool: ${tool.name}`);
       this.deps.log(`  Description: ${formatToolDescription(tool.description)}`);
 
-      const schema = tool.inputSchema as Record<string, unknown> | undefined;
+      const schema = tool.inputSchema as JsonSchema | undefined;
       schemas.set(tool.name, schema);
 
-      if (schema?.required && Array.isArray(schema.required)) {
+      if (Array.isArray(schema?.required)) {
         this.deps.log(
-          `  Required properties: ${(schema.required as string[]).join(', ')}`
+          `  Required properties: ${schema.required.join(', ')}`
         );
       }
 
@@ -375,7 +374,7 @@ export class ChatRequestHandler {
    */
   private resolveToolCallArgs(
     toolCall: { id: string; name: string; arguments: string },
-    toolSchemas: Map<string, Record<string, unknown> | undefined>
+    toolSchemas: Map<string, JsonSchema | undefined>
   ): Record<string, unknown> {
     const { log } = this.deps;
     log(`\n=== TOOL CALL RECEIVED ===`);
@@ -446,14 +445,9 @@ export class ChatRequestHandler {
     for (let i = 0; i < openAIMessages.length; i++) {
       const msg = openAIMessages[i];
       const toolCallId = typeof msg.tool_call_id === 'string' ? msg.tool_call_id : 'none';
-      let hasContent: boolean;
-      if (typeof msg.content === 'string') {
-        hasContent = msg.content.length > 0;
-      } else if (Array.isArray(msg.content)) {
-        hasContent = msg.content.length > 0;
-      } else {
-        hasContent = msg.content !== null && msg.content !== undefined;
-      }
+      const hasContent = typeof msg.content === 'string' || Array.isArray(msg.content)
+        ? msg.content.length > 0
+        : msg.content !== null && msg.content !== undefined;
       const hasToolCalls = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0;
       this.deps.log(
         `  Message ${i + 1}: role=${msg.role}, hasContent=${hasContent}, hasToolCalls=${hasToolCalls}, toolCallId=${toolCallId}`

@@ -10,7 +10,7 @@ type Logger = (message: string) => void;
  */
 export function promptOpenSettings(message: string, log: Logger): void {
   vscode.window.showErrorMessage(message, 'Open Settings').then(
-    (selection: string | undefined) => {
+    (selection) => {
       if (selection === 'Open Settings') {
         vscode.commands.executeCommand(
           'workbench.action.openSettings',
@@ -34,7 +34,7 @@ function promptToolCallingError(log: Logger, showOutput: () => void): void {
       'Disable Tool Calling'
     )
     .then(
-      (selection: string | undefined) => {
+      (selection) => {
         if (selection === 'Open Output') {
           showOutput();
         } else if (selection === 'Disable Tool Calling') {

@@ -145,21 +145,21 @@ function renderResponded(
   state: Extract<StatusBarState, { kind: 'responded' }>
 ): StatusBarRender {
   const text = `${ICON_CONNECTED} ${stripPort(state.host)}`;
-  const tooltipLines = [
+  const tooltip = [
     '**9Router**',
     '',
     `Last request: \`${state.modelId}\``,
     `Server: \`${state.host}\``,
-  ];
-  if (state.usage) {
-    tooltipLines.push(
-      '',
-      `Tokens: ${state.usage.prompt.toLocaleString()} in / ` +
-        `${state.usage.completion.toLocaleString()} out / ` +
-        `${state.usage.total.toLocaleString()} total`
-    );
-  }
-  return { text, tooltip: tooltipLines.join('\n') };
+    ...(state.usage
+      ? [
+          '',
+          `Tokens: ${state.usage.prompt.toLocaleString()} in / ` +
+            `${state.usage.completion.toLocaleString()} out / ` +
+            `${state.usage.total.toLocaleString()} total`,
+        ]
+      : []),
+  ].join('\n');
+  return { text, tooltip };
 }
 
 function renderError(state: Extract<StatusBarState, { kind: 'error' }>): StatusBarRender {
