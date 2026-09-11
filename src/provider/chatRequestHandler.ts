@@ -15,6 +15,7 @@ import {
 } from '../chat/tokenBudget';
 import { tryRepairJson } from '../chat/jsonRepair';
 import { fillMissingRequiredProperties } from '../chat/toolSchema';
+import { pickReasoningEffort } from '../chat/reasoningEffort';
 import {
   StreamChunk,
   StreamReporter,
@@ -70,17 +71,17 @@ const USAGE_DATA_PART_MIME_TYPE = 'usage';
 export type RequestStateEvent =
   | { readonly kind: 'start'; readonly modelId: string; readonly modelName: string }
   | {
-      readonly kind: 'complete';
-      readonly modelId: string;
-      readonly modelName: string;
-      readonly usage?: TokenUsage;
-    }
+    readonly kind: 'complete';
+    readonly modelId: string;
+    readonly modelName: string;
+    readonly usage?: TokenUsage;
+  }
   | {
-      readonly kind: 'error';
-      readonly modelId: string;
-      readonly modelName: string;
-      readonly errorMessage: string;
-    };
+    readonly kind: 'error';
+    readonly modelId: string;
+    readonly modelName: string;
+    readonly errorMessage: string;
+  };
 
 /**
  * Format a tool's description for the output channel: trim, truncate at
@@ -129,7 +130,7 @@ interface ChatRequestHandlerDeps {
  * sizes, cached model data) lives in the {@link ModelCatalog}.
  */
 export class ChatRequestHandler {
-  constructor(private readonly deps: ChatRequestHandlerDeps) {}
+  constructor(private readonly deps: ChatRequestHandlerDeps) { }
 
   public async handle(
     model: vscode.LanguageModelChatInformation,
@@ -235,6 +236,22 @@ export class ChatRequestHandler {
         pickNumber(discovered?.temperature) ??
         (hasTools ? config.agentTemperature : DEFAULT_TEMPERATURE);
 
+      const reasoningEffort = pickReasoningEffort({
+        // The "Thinking Effort" picker (microsoft/vscode#315181) writes
+        // the user's choice into `modelOptions.reasoningEffort` on the
+        // chat request. The same field is sometimes exposed as
+        // `modelConfiguration` in builds that promote the picker to
+        // stable; both are read, with `modelOptions` taking priority
+        // because that is the only public hook in VS Code 1.137+.
+        optionsModelOptions:
+          (options.modelOptions as Record<string, unknown> | undefined) ?? undefined,
+        modelConfiguration:
+          (options as { modelConfiguration?: Record<string, unknown> | undefined })
+            .modelConfiguration,
+        perModelOptions: perModel,
+        extraModelOptions: config.extraModelOptions,
+      });
+
       const requestOptions = buildChatRequest({
         model: model.id,
         messages: truncatedMessages,
@@ -248,8 +265,13 @@ export class ChatRequestHandler {
           ...config.extraModelOptions,
           ...perModel,
           ...options.modelOptions,
+          ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
         },
       });
+
+      if (reasoningEffort) {
+        log(`Reasoning effort: ${reasoningEffort}`);
+      }
 
       if (hasTools) {
         log(
@@ -382,8 +404,7 @@ export class ChatRequestHandler {
     log(`  ID: ${toolCall.id}`);
     log(`  Name: ${toolCall.name}`);
     log(
-      `  Raw arguments: ${toolCall.arguments.substring(0, MAX_TOOL_ARGS_LOG_LENGTH)}${
-        toolCall.arguments.length > MAX_TOOL_ARGS_LOG_LENGTH ? '...' : ''
+      `  Raw arguments: ${toolCall.arguments.substring(0, MAX_TOOL_ARGS_LOG_LENGTH)}${toolCall.arguments.length > MAX_TOOL_ARGS_LOG_LENGTH ? '...' : ''
       }`
     );
 

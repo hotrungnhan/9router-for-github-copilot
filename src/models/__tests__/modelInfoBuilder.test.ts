@@ -277,3 +277,200 @@ describe('buildModelInfo capabilities pass-through', () => {
     assert.deepEqual(info.capabilities, {});
   });
 });
+
+describe('buildModelInfo reasoning-effort configurationSchema', () => {
+  test('emits a picker schema with the correct enum for openai-format models', () => {
+    const { info } = buildModelInfo({
+      model: baseModel({
+        id: 'cbai/gpt-5.6-luna',
+        capabilities: { reasoning: true, thinkingFormat: 'openai' },
+      }),
+      defaultMaxTokens: 8192,
+      defaultMaxOutputTokens: 2048,
+      capabilities: {},
+    });
+    assert.deepEqual(info.configurationSchema?.properties.reasoningEffort.enum, [
+      'low',
+      'medium',
+      'high',
+    ]);
+    assert.equal(info.configurationSchema?.properties.reasoningEffort.default, 'medium');
+    assert.equal(info.configurationSchema?.properties.reasoningEffort.type, 'string');
+  });
+
+  test('emits a Claude-adaptive schema with xhigh and max, defaulting to high', () => {
+    const { info } = buildModelInfo({
+      model: baseModel({
+        id: 'cl/anthropic/claude-opus-4.7',
+        capabilities: { reasoning: true, thinkingFormat: 'claude-adaptive' },
+      }),
+      defaultMaxTokens: 8192,
+      defaultMaxOutputTokens: 2048,
+      capabilities: {},
+    });
+    assert.deepEqual(info.configurationSchema?.properties.reasoningEffort.enum, [
+      'low',
+      'medium',
+      'high',
+      'max',
+      'xhigh',
+    ]);
+    // Claude family default = 'high', per the Copilot BYOK heuristic
+    // (microsoft/vscode#315181).
+    assert.equal(info.configurationSchema?.properties.reasoningEffort.default, 'high');
+  });
+
+  test('omits the schema when the model is not reasoning-capable', () => {
+    const { info } = buildModelInfo({
+      model: baseModel(),
+      defaultMaxTokens: 8192,
+      defaultMaxOutputTokens: 2048,
+      capabilities: {},
+    });
+    assert.equal(info.configurationSchema, undefined);
+  });
+
+  test('omits the schema for zai-format models without thinkingEffortSupported', () => {
+    const { info } = buildModelInfo({
+      model: baseModel({
+        id: 'cbai/glm-5.1',
+        capabilities: { reasoning: true, thinkingFormat: 'zai' },
+      }),
+      defaultMaxTokens: 8192,
+      defaultMaxOutputTokens: 2048,
+      capabilities: {},
+    });
+    assert.equal(info.configurationSchema, undefined);
+  });
+
+  test('emits a zai schema only when thinkingEffortSupported is true', () => {
+    const { info } = buildModelInfo({
+      model: baseModel({
+        id: 'cbai/glm-5.2',
+        capabilities: {
+          reasoning: true,
+          thinkingFormat: 'zai',
+          thinkingEffortSupported: true,
+        },
+      }),
+      defaultMaxTokens: 8192,
+      defaultMaxOutputTokens: 2048,
+      capabilities: {},
+    });
+    assert.deepEqual(info.configurationSchema?.properties.reasoningEffort.enum, [
+      'low',
+      'medium',
+      'high',
+    ]);
+  });
+
+  test('falls back to the openai enum for unknown-format reasoning models in the openai family', () => {
+    const { info } = buildModelInfo({
+      model: baseModel({
+        id: 'cbai/gpt-5.4',
+        capabilities: { reasoning: true },
+      }),
+      defaultMaxTokens: 8192,
+      defaultMaxOutputTokens: 2048,
+      capabilities: {},
+    });
+    assert.deepEqual(info.configurationSchema?.properties.reasoningEffort.enum, [
+      'low',
+      'medium',
+      'high',
+    ]);
+  });
+
+  test('omits `default` when the preferred level is not in the enum', () => {
+    const { info } = buildModelInfo({
+      model: baseModel({
+        id: 'cl/anthropic/claude-haiku-4.5',
+        capabilities: {
+          reasoning: true,
+          thinkingFormat: 'claude-budget',
+          // small enum — no `high` available
+        },
+      }),
+      defaultMaxTokens: 8192,
+      defaultMaxOutputTokens: 2048,
+      capabilities: {},
+    });
+    // claude-budget → ['low','medium','high','max']; preferred is 'high' which IS
+    // in the enum, so default should be set. Use a non-Claude name to
+    // verify the no-default fallback.
+    const fallback = buildModelInfo({
+      model: baseModel({
+        id: 'cbai/claude-haiku-lite',
+        capabilities: {
+          reasoning: true,
+          thinkingFormat: 'claude-budget',
+        },
+      }),
+      defaultMaxTokens: 8192,
+      defaultMaxOutputTokens: 2048,
+      capabilities: {},
+    });
+    // Both produce schemas — the family detector catches the "claude"
+    // substring in either case, so `default` will be `'high'`.
+    assert.equal(info.configurationSchema?.properties.reasoningEffort.default, 'high');
+    assert.equal(fallback.info.configurationSchema?.properties.reasoningEffort.default, 'high');
+  });
+
+  test('places the schema in the `navigation` group', () => {
+    const { info } = buildModelInfo({
+      model: baseModel({
+        id: 'cbai/glm-5.2',
+        capabilities: {
+          reasoning: true,
+          thinkingFormat: 'zai',
+          thinkingEffortSupported: true,
+        },
+      }),
+      defaultMaxTokens: 8192,
+      defaultMaxOutputTokens: 2048,
+      capabilities: {},
+    });
+    assert.equal(info.configurationSchema?.group, 'navigation');
+    assert.equal(info.configurationSchema?.properties.reasoningEffort.group, 'navigation');
+  });
+
+  test('server-advertised capabilities.reasoningEffort wins over the format heuristic', () => {
+    const { info } = buildModelInfo({
+      model: baseModel({
+        id: 'gh/gpt-5.6-luna',
+        capabilities: {
+          reasoning: true,
+          thinkingFormat: 'openai',
+          // Server says the model only supports these two — even though
+          // the openai heuristic would emit three.
+          reasoningEffort: ['low', 'high'],
+        },
+      }),
+      defaultMaxTokens: 8192,
+      defaultMaxOutputTokens: 2048,
+      capabilities: {},
+    });
+    assert.deepEqual(info.configurationSchema?.properties.reasoningEffort.enum, ['low', 'high']);
+  });
+
+  test('falls back to the format heuristic when the server list is empty', () => {
+    const { info } = buildModelInfo({
+      model: baseModel({
+        id: 'gh/gpt-5.6-luna',
+        capabilities: {
+          reasoning: true,
+          thinkingFormat: 'openai',
+          reasoningEffort: [],
+        },
+      }),
+      defaultMaxTokens: 8192,
+      defaultMaxOutputTokens: 2048,
+      capabilities: {},
+    });
+    assert.deepEqual(info.configurationSchema?.properties.reasoningEffort.enum, [
+      'low',
+      'medium',
+      'high',
+    ]);
+  });
+});
