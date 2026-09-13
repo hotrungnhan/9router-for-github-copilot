@@ -4,7 +4,7 @@ import { GatewayConfig } from '../config/gatewayConfig';
 import { DiscoveredModelInfo, ModelDiscovery } from '../discovery/types';
 import { TOKEN_CONSTANTS } from '../chat/tokenBudget';
 import { parseContextOverflowError, resolveContextWindowOverride } from '../chat/contextWindow';
-import { dedupeModels } from '../models/modelDisplay';
+import { dedupeModels, groupAntigravityModels, isAgModel } from '../models/modelDisplay';
 import { buildModelInfo } from '../models/modelInfoBuilder';
 
 interface ModelCatalogDeps {
@@ -62,6 +62,10 @@ export class ModelCatalog {
    * them in `perModelOptions` client-side.
    */
   private readonly discoveredByModelId: Map<string, DiscoveredModelInfo> = new Map();
+  /** Set of model IDs owned by Antigravity ('ag'). */
+  private readonly agModelIds: Set<string> = new Set();
+  /** Raw server model IDs associated with an Antigravity base model. */
+  private readonly agRawIdsByModelId: Map<string, ReadonlySet<string>> = new Map();
   private lastSuccessfulFetchAt?: number;
   private lastConnectionError?: string;
 
@@ -85,6 +89,14 @@ export class ModelCatalog {
    */
   public getDiscoveredParams(modelId: string): Readonly<Record<string, number>> | undefined {
     return this.discoveredByModelId.get(modelId)?.samplerParams;
+  }
+
+  public isAgModel(modelId: string): boolean {
+    return this.agModelIds.has(modelId) || isAgModel({ id: modelId });
+  }
+
+  public getAgRawIds(modelId: string): ReadonlySet<string> | undefined {
+    return this.agRawIdsByModelId.get(modelId);
   }
 
   public getLastSuccessfulFetchAt(): number | undefined {
@@ -171,10 +183,11 @@ export class ModelCatalog {
       return [];
     }
 
-    const uniqueModels = dedupeModels(response.data);
+    const rawModels = dedupeModels(response.data);
+    const uniqueModels = groupAntigravityModels(rawModels);
     if (uniqueModels.length !== response.data.length) {
       log(
-        `Server returned ${response.data.length} models, ${uniqueModels.length} unique after dedupe`
+        `Server returned ${response.data.length} models, ${uniqueModels.length} after dedupe and grouping`
       );
     }
 
@@ -183,10 +196,20 @@ export class ModelCatalog {
     // concurrent chat request sees no context/params at all.
     const nextContextByModelId = new Map<string, number>();
     const nextDiscoveredByModelId = new Map<string, DiscoveredModelInfo>();
+    const nextAgModelIds = new Set<string>();
+    const nextAgRawIdsByModelId = new Map<string, ReadonlySet<string>>();
 
     const config = this.deps.getConfig();
     const models = await Promise.all(
       uniqueModels.map(async (model) => {
+        if (isAgModel(model)) {
+          nextAgModelIds.add(model.id);
+          const rawIds = model.capabilities?.agRawIds;
+          if (rawIds && rawIds.length > 0) {
+            nextAgRawIdsByModelId.set(model.id, new Set(rawIds));
+          }
+        }
+
         const contextOverride = resolveContextWindowOverride(
           model.id,
           config.modelContextWindows
@@ -261,11 +284,19 @@ export class ModelCatalog {
     // gone so stale data can't leak into future chat requests.
     this.contextByModelId.clear();
     this.discoveredByModelId.clear();
+    this.agModelIds.clear();
+    this.agRawIdsByModelId.clear();
     for (const [id, context] of nextContextByModelId) {
       this.contextByModelId.set(id, context);
     }
     for (const [id, discovered] of nextDiscoveredByModelId) {
       this.discoveredByModelId.set(id, discovered);
+    }
+    for (const id of nextAgModelIds) {
+      this.agModelIds.add(id);
+    }
+    for (const [id, rawIds] of nextAgRawIdsByModelId) {
+      this.agRawIdsByModelId.set(id, rawIds);
     }
 
     log(`Found ${models.length} models: ${models.map((m) => m.id).join(', ')}`);

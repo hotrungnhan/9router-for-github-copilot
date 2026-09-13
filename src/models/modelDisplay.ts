@@ -107,6 +107,121 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
+// ponytail: fixed postfix list (extra-low|low|high|medium|thinking). Upgrade to dynamic server capabilities if AG standardizes.
+export const AG_POSTFIX_RE = /-(extra-low|low|high|medium|thinking)$/i;
+export const AG_EFFORT_SUFFIX_RE = AG_POSTFIX_RE;
+const AG_EFFORT_POSTFIXES = new Set(['low', 'medium', 'high', 'extra-low']);
+const AG_EFFORT_ORDER = ['low', 'medium', 'high'] as const;
+
+/**
+ * Check if a model is an Antigravity (ag) model based on owner or id.
+ */
+export function isAgModel(model: { id: string; owned_by?: string }): boolean {
+  if (model.owned_by?.toLowerCase() === 'ag') {
+    return true;
+  }
+  const { provider } = parseModelId(model.id);
+  return provider?.toLowerCase() === 'ag';
+}
+
+/**
+ * Group Antigravity (ag) models that differ only by reasoning effort postfix
+ * (-low, -high, -medium, -extra-low, -thinking) into a single base model
+ * (e.g. `ag/gemini-3.5-flash`, `ag/gemini-3.8-flash`) with effort `low, medium, high`.
+ */
+export function groupAntigravityModels(models: readonly OpenAIModel[]): OpenAIModel[] {
+  const result: OpenAIModel[] = [];
+  const agGroups = new Map<string, {
+    baseModel: OpenAIModel;
+    hasExplicitBase: boolean;
+    rawIds: Set<string>;
+    efforts: Set<string>;
+  }>();
+
+  for (const model of models) {
+    if (!isAgModel(model)) {
+      result.push(model);
+      continue;
+    }
+
+    const match = model.id.match(AG_POSTFIX_RE);
+    const baseId = match ? model.id.slice(0, match.index) : model.id;
+
+    let group = agGroups.get(baseId);
+    if (!group) {
+      const baseModel: OpenAIModel = match
+        ? { ...model, id: baseId }
+        : { ...model };
+      group = {
+        baseModel,
+        hasExplicitBase: !match,
+        rawIds: new Set([model.id]),
+        efforts: new Set<string>(),
+      };
+      agGroups.set(baseId, group);
+      result.push(group.baseModel);
+    } else {
+      group.rawIds.add(model.id);
+      if (!match && !group.hasExplicitBase) {
+        Object.assign(group.baseModel, model, { id: baseId });
+        group.hasExplicitBase = true;
+      }
+    }
+
+    if (match) {
+      const postfix = match[1].toLowerCase();
+      if (AG_EFFORT_POSTFIXES.has(postfix)) {
+        group.efforts.add(postfix === 'extra-low' ? 'low' : postfix);
+      }
+    }
+  }
+
+  for (const group of agGroups.values()) {
+    group.baseModel.capabilities = {
+      ...group.baseModel.capabilities,
+      // An explicit empty array prevents modelInfoBuilder from inferring
+      // Claude/OpenAI effort levels for plain or thinking-only AG models.
+      reasoningEffort: AG_EFFORT_ORDER.filter((effort) => group.efforts.has(effort)),
+      ...(group.efforts.size > 0 ? { reasoning: true, thinkingEffortSupported: true } : {}),
+      agRawIds: [...group.rawIds],
+    };
+  }
+
+  return result;
+}
+
+/**
+ * Resolve the wire model ID sent to the inference server.
+ * For Antigravity (owner `ag` or `ag/` prefix), the server encodes reasoning effort
+ * into the model name suffix (e.g. `ag/gemini-3.8-flash-high`) rather than accepting
+ * standard `reasoning_effort` wire parameters.
+ */
+export function resolveWireModelId(
+  modelId: string,
+  reasoningEffort: string | undefined,
+  isAg: boolean,
+  knownRawIds?: ReadonlySet<string>
+): string {
+  if (!isAg) {
+    return modelId;
+  }
+  if (!reasoningEffort) {
+    return knownRawIds?.size === 1 ? [...knownRawIds][0] : modelId;
+  }
+  const baseId = modelId.replace(AG_POSTFIX_RE, '');
+  const candidate = `${baseId}-${reasoningEffort}`;
+  if (!knownRawIds || knownRawIds.size === 0) {
+    return candidate;
+  }
+  if (knownRawIds.has(candidate)) {
+    return candidate;
+  }
+  if (knownRawIds.has(baseId)) {
+    return baseId;
+  }
+  return knownRawIds.size === 1 ? [...knownRawIds][0] : candidate;
+}
+
 /**
  * Deduplicate a list of models by `id`, preserving first-seen order. Servers
  * occasionally return the same id twice (e.g. LoRA adapters sharing a base

@@ -11,8 +11,33 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { Profile } from './profileTypes';
+import { AG_POSTFIX_RE } from '../models/modelDisplay';
 
 export const VENDOR_ID = '9router-github-copilot';
+
+/**
+ * Clean up Antigravity effort-suffixed model keys from chatLanguageModels.json settings,
+ * collapsing them into their base model key so the UI does not display duplicate rows.
+ */
+export function sanitizeChatLanguageModelsSettings(
+  settings: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!settings || typeof settings !== 'object') {
+    return settings;
+  }
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(settings)) {
+    if (key.startsWith('ag/') && AG_POSTFIX_RE.test(key)) {
+      const baseKey = key.replace(AG_POSTFIX_RE, '');
+      if (!cleaned[baseKey]) {
+        cleaned[baseKey] = value;
+      }
+    } else {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+}
 
 /**
  * Locate VS Code user directory containing `chatLanguageModels.json`.
@@ -118,11 +143,12 @@ export async function syncChatLanguageModelsGroups(
       const match = existing.find(
         (g) => g.vendor === VENDOR_ID && (g.name === p.name || g.profileId === p.id)
       );
+      const cleanedSettings = sanitizeChatLanguageModelsSettings(match?.settings);
       return {
         name: p.name,
         vendor: VENDOR_ID,
         profileId: p.id,
-        ...(match?.settings ? { settings: match.settings } : {}),
+        ...(cleanedSettings ? { settings: cleanedSettings } : {}),
       };
     });
 

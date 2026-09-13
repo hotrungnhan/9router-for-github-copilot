@@ -317,3 +317,52 @@ describe('ModelCatalog.learnContextSizeFromError', () => {
     assert.equal(h.catalog.resolveModelMaxContext(model), 8192);
   });
 });
+
+describe('ModelCatalog Antigravity model grouping', () => {
+  test('groups AG reasoning-effort variants into a single picker model', async () => {
+    const h = makeCatalog({
+      fetchModels: () =>
+        Promise.resolve({
+          object: 'list',
+          data: [
+            {
+              id: 'ag/gemini-3.8-flash-high',
+              object: 'model',
+              created: 0,
+              owned_by: 'ag',
+              capabilities: {
+                vision: true,
+                reasoning: true,
+                thinkingFormat: 'gemini-level',
+                thinkingEffortSupported: false,
+                contextWindow: 1048576,
+                maxOutput: 65536,
+              },
+              context_length: 1048576,
+            },
+            {
+              id: 'ag/gemini-3.8-flash-low',
+              object: 'model',
+              created: 0,
+              owned_by: 'ag',
+              capabilities: {
+                vision: true,
+                reasoning: true,
+                thinkingFormat: 'gemini-level',
+                thinkingEffortSupported: false,
+                contextWindow: 1048576,
+                maxOutput: 65536,
+              },
+              context_length: 1048576,
+            },
+          ],
+        }),
+    });
+
+    const { models } = await h.catalog.getOrFetchModels(fakeToken());
+    assert.equal(models.length, 1);
+    assert.equal(models[0].id, 'ag/gemini-3.8-flash');
+    assert.equal(h.catalog.isAgModel('ag/gemini-3.8-flash'), true);
+    assert.equal(models[0].configurationSchema?.properties?.reasoningEffort?.enum?.length, 2);
+  });
+});

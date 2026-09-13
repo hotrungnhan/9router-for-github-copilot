@@ -5,6 +5,7 @@ import {
   hasChatLanguageModelsGroups,
   getChatLanguageModelsGroupsForVendor,
   getChatLanguageModelsPath,
+  sanitizeChatLanguageModelsSettings,
 } from '../groupSync';
 
 describe('groupSync', () => {
@@ -25,5 +26,23 @@ describe('groupSync', () => {
   it('retrieves group names without crashing', () => {
     const groups = getChatLanguageModelsGroupsForVendor();
     assert.ok(Array.isArray(groups));
+  });
+
+  it('sanitizes effort-suffixed settings keys to base model IDs', () => {
+    const raw = {
+      'ag/gemini-3.7-flash-high': { reasoningEffort: 'high' },
+      'ag/gemini-3.7-flash-low': { reasoningEffort: 'high' },
+      'ag/gemini-3.8-flash': { reasoningEffort: 'high' },
+      'ag/gemini-3.8-flash-high': { reasoningEffort: 'high' },
+      'ag/claude-opus-4-6-thinking': { reasoningEffort: 'medium' },
+      'openrouter/poolside/laguna-s-2.1:free': { reasoningEffort: 'high' },
+    };
+    const sanitized = sanitizeChatLanguageModelsSettings(raw);
+    assert.deepEqual(sanitized, {
+      'ag/gemini-3.7-flash': { reasoningEffort: 'high' },
+      'ag/gemini-3.8-flash': { reasoningEffort: 'high' },
+      'ag/claude-opus-4-6': { reasoningEffort: 'medium' },
+      'openrouter/poolside/laguna-s-2.1:free': { reasoningEffort: 'high' },
+    });
   });
 });

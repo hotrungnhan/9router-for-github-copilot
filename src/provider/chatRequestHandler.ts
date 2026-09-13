@@ -22,7 +22,7 @@ import {
   isEmptyStreamResult,
   streamResponse,
 } from '../chat/responseStreamer';
-import { friendlyModelName } from '../models/modelDisplay';
+import { friendlyModelName, resolveWireModelId } from '../models/modelDisplay';
 import { TokenUsage } from '../status/sessionStats';
 import { ModelCatalog } from './modelCatalog';
 import { convertAllMessages } from './vscodeParts';
@@ -252,8 +252,11 @@ export class ChatRequestHandler {
         extraModelOptions: config.extraModelOptions,
       });
 
+      const isAg = catalog.isAgModel(model.id);
+      const wireModel = resolveWireModelId(model.id, reasoningEffort, isAg, catalog.getAgRawIds(model.id));
+
       const requestOptions = buildChatRequest({
-        model: model.id,
+        model: wireModel,
         messages: truncatedMessages,
         maxTokens: safeMaxOutputTokens,
         temperature,
@@ -265,12 +268,12 @@ export class ChatRequestHandler {
           ...config.extraModelOptions,
           ...perModel,
           ...options.modelOptions,
-          ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+          ...(reasoningEffort && !isAg ? { reasoning_effort: reasoningEffort } : {}),
         },
       });
 
       if (reasoningEffort) {
-        log(`Reasoning effort: ${reasoningEffort}`);
+        log(`Reasoning effort: ${reasoningEffort}${isAg ? ` (wire model: ${wireModel})` : ''}`);
       }
 
       if (hasTools) {

@@ -473,4 +473,39 @@ describe('buildModelInfo reasoning-effort configurationSchema', () => {
       'high',
     ]);
   });
+
+  test('does not emit thinking effort schema for Antigravity models without effort variants', () => {
+    const sonnet = buildModelInfo({
+      model: baseModel({
+        id: 'ag/claude-sonnet-4-6',
+        owned_by: 'ag',
+        capabilities: {
+          reasoning: true,
+          thinkingFormat: 'claude-adaptive',
+          thinkingEffortSupported: false,
+        },
+      }),
+      defaultMaxTokens: 8192,
+      defaultMaxOutputTokens: 2048,
+      capabilities: {},
+    });
+    assert.equal(sonnet.info.configurationSchema, undefined);
+
+    const opus = buildModelInfo({
+      model: baseModel({
+        id: 'ag/claude-opus-4-6',
+        owned_by: 'ag',
+        capabilities: {
+          reasoning: true,
+          thinkingFormat: 'claude-budget',
+          thinkingEffortSupported: false,
+          reasoningEffort: [],
+        },
+      }),
+      defaultMaxTokens: 8192,
+      defaultMaxOutputTokens: 2048,
+      capabilities: {},
+    });
+    assert.equal(opus.info.configurationSchema, undefined);
+  });
 });

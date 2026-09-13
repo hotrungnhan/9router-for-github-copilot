@@ -7,7 +7,7 @@
 
 import type { LanguageModelConfigurationSchema } from 'vscode';
 import { OpenAIModel } from '../api/types';
-import { describeModel, friendlyModelName, inferModelFamily, parseModelId } from './modelDisplay';
+import { describeModel, friendlyModelName, inferModelFamily, isAgModel, parseModelId } from './modelDisplay';
 import { serverReportedContext } from '../chat/contextWindow';
 import { TOKEN_CONSTANTS } from '../chat/tokenBudget';
 
@@ -183,14 +183,17 @@ export function resolveReasoningEffortSchema(
   if (!model.capabilities?.reasoning) {
     return undefined;
   }
+  // Antigravity models only expose reasoning efforts when actual effort variants existed
+  if (isAgModel(model) && (!model.capabilities.reasoningEffort || model.capabilities.reasoningEffort.length === 0)) {
+    return undefined;
+  }
   // Server-advertised list wins verbatim. Filters out empty strings and
   // non-string entries defensively — some servers embed the list inside
   // a wrapper object by mistake.
   const explicit = model.capabilities.reasoningEffort;
-  const efforts =
-    Array.isArray(explicit) && explicit.length > 0
-      ? explicit.filter((value): value is string => typeof value === 'string' && value.length > 0)
-      : pickEffortsForFormat(model);
+  const efforts = Array.isArray(explicit) && explicit.length > 0
+    ? explicit.filter((value): value is string => typeof value === 'string' && value.length > 0)
+    : pickEffortsForFormat(model);
   if (!efforts || efforts.length === 0) {
     return undefined;
   }

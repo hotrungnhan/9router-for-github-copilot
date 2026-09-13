@@ -50,6 +50,8 @@ export interface OpenAIModel {
     thinkingEffortSupported?: boolean;
     contextWindow?: number;
     maxOutput?: number;
+    /** Raw server model IDs belonging to an Antigravity merged model group. */
+    agRawIds?: string[];
   };
   /**
    * llama.cpp nests model metadata here. `n_ctx` is the actual serving

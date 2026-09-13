@@ -28,6 +28,7 @@ import { ProfileStore } from '../profiles/profileStore';
 import { Profile, DEFAULT_PROFILE_ID } from '../profiles/profileTypes';
 import { ProfileRuntime } from './profileRuntime';
 import { formatExposedModelId, parseModelTarget } from '../profiles/modelNamespace';
+import { syncChatLanguageModelsGroups } from '../profiles/groupSync';
 import { promptOpenSettings } from './notifications';
 import { countMessageTokens } from './vscodeParts';
 
@@ -172,6 +173,7 @@ export class GatewayProvider
       }
     }
 
+    syncChatLanguageModelsGroups(profiles, (msg) => this.outputChannel.appendLine(msg)).catch(() => undefined);
     this._onDidChangeStatusSnapshot.fire();
   }
 

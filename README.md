@@ -55,6 +55,8 @@ Inference stays on your server. No per-token fees. Doesn't consume Copilot premi
 
 **Context overflow errors?** Add the model to `modelContextWindows` with the correct limit. The extension learns the real limit from the error and retries once automatically.
 
+**Antigravity (`ag`) models on non-9Router backends?** Models owned by `ag` (or with `ag/` prefix) are automatically grouped by reasoning effort in the VS Code picker (e.g. `ag/gemini-3.8-flash-high`, `-medium`, `-low` collapse into `ag/gemini-3.8-flash` with a thinking effort dropdown). When sending chat requests, the selected reasoning effort is appended directly to the wire model name (e.g. `ag/gemini-3.8-flash-high`). If you connect to a non-9Router server where `owned_by: "ag"` is used without supporting effort-suffixed model endpoints, this transformation will conflict and cause model-not-found errors.
+
 **Models not in the Agents window?** Agents window runs in a separate process. Add this to settings and reload:
 
 ```jsonc
