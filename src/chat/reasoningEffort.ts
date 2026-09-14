@@ -28,7 +28,7 @@
  * the request body as `reasoning_effort`; any value outside this set is
  * treated as "not specified" and the field is omitted.
  */
-export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
+export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 /**
  * `vscode.ProvideLanguageModelChatResponseOptions.modelOptions` /
@@ -64,9 +64,7 @@ export interface ReasoningEffortSources {
  * {@link ReasoningEffort} union. The literal strings `"none"`, `"off"`, and
  * any other value outside the union are dropped — GitHub Copilot's
  * `/v1/chat/completions` returns 400 on `"none"` for models that don't
- * accept it, and 9Router itself strips it (decolua/9router PR #791). The
- * legacy `"max"` value is also dropped because it is not part of the
- * Copilot SDK's union (the closest supported level is `"xhigh"`).
+ * accept it, and 9Router itself strips it (decolua/9router PR #791).
  */
 export function pickReasoningEffort(sources: ReasoningEffortSources): ReasoningEffort | undefined {
     const candidate =
@@ -91,6 +89,7 @@ const REASONING_EFFORT_VALUES: ReadonlySet<string> = new Set([
     'medium',
     'high',
     'xhigh',
+    'max',
 ]);
 
 function pickString(value: unknown): string | undefined {

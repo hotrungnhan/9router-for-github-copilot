@@ -33,7 +33,7 @@ export const PROVIDER_MULTIPLIER_NUMERIC = 0;
 const OPENAI_EFFORTS = ['low', 'medium', 'high'] as const;
 const CLAUDE_ADAPTIVE_EFFORTS = ['low', 'medium', 'high', 'max', 'xhigh'] as const;
 const CLAUDE_BUDGET_EFFORTS = ['low', 'medium', 'high', 'max'] as const;
-const DEEPSEEK_EFFORTS = ['high', 'max'] as const;
+const DEEPSEEK_EFFORTS = ['low', 'high', 'max'] as const;
 const ZAI_EFFORTS = ['low', 'medium', 'high'] as const;
 const KIMI_EFFORTS = ['low', 'medium', 'high'] as const;
 const MINIMAX_EFFORTS = ['low', 'medium', 'high'] as const;
@@ -183,6 +183,14 @@ export function resolveReasoningEffortSchema(
   if (!model.capabilities?.reasoning) {
     return undefined;
   }
+  // Some providers bake the reasoning tier into the model id itself
+  // (e.g. `cu/claude-4.5-opus-high-thinking`). For those the picker is
+  // noise — the tier is already fixed by the model entry, and the
+  // upstream ignores any `reasoning_effort` we'd forward. Skip the
+  // schema entirely before any format-based enum logic runs.
+  if (hasReasoningTierInName(model.id)) {
+    return undefined;
+  }
   // Server-advertised list wins verbatim. Filters out empty strings and
   // non-string entries defensively — some servers embed the list inside
   // a wrapper object by mistake.
@@ -271,4 +279,105 @@ function pickEffortsForFormat(
 function stripProviderPrefix(modelId: string): string {
   const slash = modelId.lastIndexOf('/');
   return slash >= 0 && slash < modelId.length - 1 ? modelId.slice(slash + 1) : modelId;
+}
+
+
+/**
+ * Reasoning-tier tokens that may appear as a `-` or `_`-separated
+ * segment in a model id. Case-insensitive. Exported as an array so
+ * it's trivially extensible from tests or future providers — just push
+ * more entries. The {@link hasReasoningTierInName} fast-path uses an
+ * internal `Set` mirror to avoid the O(n) `Array.includes` scan on
+ * each call.
+ */
+export const REASONING_TIER_KEYWORDS: readonly string[] = [
+  'low',
+  'medium',
+  'high',
+  'extra',
+  'max',
+  'xhigh',
+  'thinking',
+  'agentic',
+];
+
+/** Set mirror of {@link REASONING_TIER_KEYWORDS} for O(1) lookup. */
+const REASONING_TIER_KEYWORD_SET: ReadonlySet<string> = new Set(REASONING_TIER_KEYWORDS);
+
+/**
+ * Number of trailing segments to inspect for a tier keyword. Providers
+ * expose tier-baked models with the tier at the tail — usually a single
+ * suffix, sometimes stacked (`high-thinking`, `extra-low`,
+ * `thinking-agentic`). Three covers the longest stacked pattern we've
+ * seen in practice without re-introducing false positives on
+ * mid-name coincidences like `claude-high-preview-4` (where `high`
+ * would otherwise be flagged even though it's a version tag).
+ */
+export const REASONING_TIER_TRAILING_SEGMENTS = 3;
+
+/**
+ * Regex used by {@link splitModelSegments} to cut both `-` and `_`
+ * boundaries in a single pass. Bracket-class character splitting is
+ * faster than running two `split` calls and stitching.
+ */
+const MODEL_SEGMENT_SPLITTER = /[-_]/;
+
+/**
+ * True when any of the last {@link REASONING_TIER_TRAILING_SEGMENTS}
+ * segments of the model id (after stripping the provider prefix) matches
+ * a reasoning-tier keyword.
+ *
+ * Matching is whole-segment, case-insensitive. Substring matches are
+ * deliberately rejected so tokens like `highlight`, `mediumwave`, or
+ * `maximus` do not trip the heuristic.
+ *
+ * Only the trailing window is inspected so a tier keyword appearing as a
+ * middle token — e.g. `claude-high-opus-4-6` where `high` is part of the
+ * model name, not a tier — does not false-positive.
+ *
+ * Tiers may stack — `claude-4.5-opus-high-thinking`,
+ * `something-thinking-agentic`, `something-medium-thinking`, and
+ * `gemini-3.5-flash-extra-low` all return true.
+ *
+ * `@example`
+ *   hasReasoningTierInName('cu/claude-4.5-opus-high-thinking') // true
+ *   hasReasoningTierInName('ag/gemini-3.5-flash-extra-low')    // true
+ *   hasReasoningTierInName('gpt-4-highlight-preview')          // false
+ *   hasReasoningTierInName('openai/o3')                         // false
+ */
+export function hasReasoningTierInName(modelId: string): boolean {
+  const slash = modelId.indexOf('/');
+  const modelPart = slash >= 0 ? modelId.slice(slash + 1) : modelId;
+  if (modelPart.length === 0) {
+    return false;
+  }
+  // Iterate the trailing 3 segments via single-pass split. Regex
+  // character class + `slice` avoids two-array materialisations.
+  const parts = modelPart.split(MODEL_SEGMENT_SPLITTER);
+  const start = parts.length > REASONING_TIER_TRAILING_SEGMENTS
+    ? parts.length - REASONING_TIER_TRAILING_SEGMENTS
+    : 0;
+  for (let i = start; i < parts.length; i++) {
+    if (REASONING_TIER_KEYWORD_SET.has(parts[i].toLowerCase())) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Split the model portion (post provider prefix) into lowercased
+ * segments on `-` and `_`. Exported so tests can inspect the parsed
+ * segments.
+ */
+export function splitModelSegments(modelId: string): readonly string[] {
+  const slash = modelId.indexOf('/');
+  const modelPart = slash >= 0 ? modelId.slice(slash + 1) : modelId;
+  if (modelPart.length === 0) {
+    return [];
+  }
+  return modelPart
+    .split(MODEL_SEGMENT_SPLITTER)
+    .filter((segment) => segment.length > 0)
+    .map((segment) => segment.toLowerCase());
 }
