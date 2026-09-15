@@ -181,19 +181,18 @@ describe('pickReasoningEffort', () => {
         );
     });
 
-    // The Copilot SDK's `ReasoningEffort` union (github/copilot-sdk#302) is
-    // exactly {low, medium, high, xhigh}. Any other string the user typed
-    // (e.g. `max`, `minimal`, an empty array, or arbitrary words) must NOT be
-    // forwarded — upstream would either 400 or silently default, and the
-    // current chat handler is meant to be a strict pass-through.
-    test('strips the legacy "max" value (not in the Copilot SDK union)', () => {
+    // Some providers (DeepSeek V4, Claude budget/adaptive) include `max` in
+    // their supported effort list, so `max` is a valid wire value. The
+    // per-format enum in modelInfoBuilder gates which values appear in the
+    // picker; the resolver itself accepts any value in the union.
+    test('accepts "max" (valid for DeepSeek, Claude budget/adaptive formats)', () => {
         assert.equal(
             pickReasoningEffort({
                 optionsModelOptions: { reasoningEffort: 'max' },
                 perModelOptions: undefined,
                 extraModelOptions: undefined,
             }),
-            undefined
+            'max'
         );
     });
 
@@ -211,8 +210,8 @@ describe('pickReasoningEffort', () => {
         }
     });
 
-    test('accepts every value in the Copilot SDK union', () => {
-        for (const value of ['low', 'medium', 'high', 'xhigh']) {
+    test('accepts every value in the ReasoningEffort union', () => {
+        for (const value of ['low', 'medium', 'high', 'xhigh', 'max']) {
             assert.equal(
                 pickReasoningEffort({
                     optionsModelOptions: { reasoningEffort: value },

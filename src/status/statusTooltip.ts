@@ -247,8 +247,8 @@ function renderSession(snapshot: StatusSnapshot): string {
   const ioRow =
     s.requestsWithUsage > 0
       ? `<tr><td colspan="2">${mutedSpan(
-          `$(arrow-up) ${esc(s.promptTokens.toLocaleString())} in · $(arrow-down) ${esc(s.completionTokens.toLocaleString())} out`
-        )}</td></tr>`
+        `$(arrow-up) ${esc(s.promptTokens.toLocaleString('en-US'))} in · $(arrow-down) ${esc(s.completionTokens.toLocaleString('en-US'))} out`
+      )}</td></tr>`
       : '';
   const totalsLabel = mutedSpan(`${esc(formatTokenCount(s.totalTokens))} tokens${esc(avgText)}`);
   return [
@@ -286,7 +286,7 @@ function renderLastRequest(snapshot: StatusSnapshot): string {
   if (last.usage) {
     rows.push(
       `<tr><td colspan="2">${mutedSpan(
-        `$(arrow-up) ${esc(last.usage.prompt.toLocaleString())} · $(arrow-down) ${esc(last.usage.completion.toLocaleString())} / ${esc(last.usage.total.toLocaleString())} total`
+        `$(arrow-up) ${esc(last.usage.prompt.toLocaleString('en-US'))} · $(arrow-down) ${esc(last.usage.completion.toLocaleString('en-US'))} / ${esc(last.usage.total.toLocaleString('en-US'))} total`
       )}</td></tr>`
     );
     if (totalContext && totalContext > 0) {
@@ -354,8 +354,8 @@ function renderModels(snapshot: StatusSnapshot): string {
   const overflowRow =
     snapshot.models.length > TOOLTIP_MODEL_LIST_MAX
       ? `<tr><td colspan="2">${mutedSpan(
-          `…and ${esc(snapshot.models.length - TOOLTIP_MODEL_LIST_MAX)} more`
-        )}</td></tr>`
+        `…and ${esc(snapshot.models.length - TOOLTIP_MODEL_LIST_MAX)} more`
+      )}</td></tr>`
       : '';
   const countLabel = mutedSpan(`${esc(snapshot.models.length)} available`);
   return [
