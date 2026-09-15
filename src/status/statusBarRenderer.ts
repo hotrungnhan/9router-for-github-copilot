@@ -20,36 +20,36 @@ import { stripPort } from './format';
 export type StatusBarState =
   | { readonly kind: 'probing'; readonly host: string }
   | {
-      readonly kind: 'idle';
-      readonly host: string;
-      readonly modelCount: number;
-      /** First several model IDs, for the tooltip preview. */
-      readonly modelIds: readonly string[];
-    }
+    readonly kind: 'idle';
+    readonly host: string;
+    readonly modelCount: number;
+    /** First several model IDs, for the tooltip preview. */
+    readonly modelIds: readonly string[];
+  }
   | {
-      readonly kind: 'streaming';
-      readonly host: string;
-      readonly modelId: string;
-      readonly modelName: string;
-      /** Number of in-flight requests — when >1 we summarise instead of naming one model. */
-      readonly activeCount: number;
-    }
+    readonly kind: 'streaming';
+    readonly host: string;
+    readonly modelId: string;
+    readonly modelName: string;
+    /** Number of in-flight requests — when >1 we summarise instead of naming one model. */
+    readonly activeCount: number;
+  }
   | {
-      readonly kind: 'responded';
-      readonly host: string;
-      readonly modelId: string;
-      readonly modelName: string;
-      readonly usage?: TokenUsage;
-    }
+    readonly kind: 'responded';
+    readonly host: string;
+    readonly modelId: string;
+    readonly modelName: string;
+    readonly usage?: TokenUsage;
+  }
   | {
-      readonly kind: 'error';
-      readonly host: string;
-      readonly errorMessage: string;
-    }
+    readonly kind: 'error';
+    readonly host: string;
+    readonly errorMessage: string;
+  }
   | {
-      readonly kind: 'noModels';
-      readonly host: string;
-    };
+    readonly kind: 'noModels';
+    readonly host: string;
+  };
 
 export interface StatusBarRender {
   readonly text: string;
@@ -154,9 +154,9 @@ function renderResponded(
   if (state.usage) {
     tooltipLines.push(
       '',
-      `Tokens: ${state.usage.prompt.toLocaleString()} in / ` +
-        `${state.usage.completion.toLocaleString()} out / ` +
-        `${state.usage.total.toLocaleString()} total`
+      `Tokens: ${state.usage.prompt.toLocaleString('en-US')} in / ` +
+      `${state.usage.completion.toLocaleString('en-US')} out / ` +
+      `${state.usage.total.toLocaleString('en-US')} total`
     );
   }
   return { text, tooltip: tooltipLines.join('\n') };

@@ -39,6 +39,37 @@ declare module 'vscode' {
     detail?: string;
     isUserSelectable?: boolean;
     multiplierNumeric?: number;
+    /**
+     * Optional JSON-Schema description of the per-model configuration the
+     * Copilot Chat model picker should render as a sub-selector. The
+     * `reasoningEffort` key (string enum) is what the upstream
+     * `byokModelInfo.ts` in `microsoft/vscode#315181` uses to expose the
+     * "Thinking Effort" picker for BYOK providers. The chosen value lands
+     * on `options.modelConfiguration.reasoningEffort` (NOT
+     * `options.modelOptions`) when the user submits a chat request.
+     */
+    configurationSchema?: LanguageModelConfigurationSchema;
+  }
+
+  /**
+   * Sub-picker schema for a `LanguageModelChatInformation`. Mirrors the
+   * shape Copilot Chat's BYOK provider emits in microsoft/vscode#315181:
+   * the schema's `properties.<name>.enum` is the dropdown list and
+   * `default` is the initial selection. The chosen value is then surfaced
+   * to the provider as `options.modelConfiguration[<name>]`.
+   */
+  interface LanguageModelConfigurationSchema {
+    readonly properties: Readonly<Record<string, LanguageModelConfigurationProperty>>;
+    /** Optional grouping hint for the picker UI. */
+    readonly group?: string;
+  }
+
+  interface LanguageModelConfigurationProperty {
+    readonly type: 'string' | 'number' | 'integer' | 'boolean';
+    readonly enum?: readonly (string | number)[];
+    readonly default?: string | number | boolean;
+    readonly description?: string;
+    readonly group?: string;
   }
 
   /**

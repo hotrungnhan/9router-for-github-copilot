@@ -30,6 +30,24 @@ export interface OpenAIModel {
     thinkingFormat?: string;
     thinkingCanDisable?: boolean;
     thinkingRange?: unknown;
+    /**
+     * Allowed `reasoning_effort` levels for the OpenAI-style picker. The
+     * server may emit this as a list of accepted values (e.g. GitHub
+     * Copilot's `/models` `capabilities.supports.reasoning_effort`,
+     * 9Router's `capabilities.reasoningEffort`); when present the model
+     * picker prefers it verbatim over the per-format heuristic. Not all
+     * upstreams surface the list — the picker falls back to a per-format
+     * default in {@link resolveReasoningEffortSchema}.
+     */
+    reasoningEffort?: string[];
+    /**
+     * Whether the model accepts an OpenAI-style `reasoning_effort` level at
+     * all. Mirrors 9Router's `thinkingEffortSupported` field; used by the
+     * model-info builder to gate the "Thinking Effort" picker on
+     * formats that only honour the field on newer server versions
+     * (e.g. zai/GLM-5.2+ — older GLM silently ignores `reasoning_effort`).
+     */
+    thinkingEffortSupported?: boolean;
     contextWindow?: number;
     maxOutput?: number;
   };
