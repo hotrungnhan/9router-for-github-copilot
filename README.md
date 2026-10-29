@@ -32,14 +32,9 @@ Connect and use multiple inference backends simultaneously (e.g. local Ollama, a
 
 ## Status Bar & Observability
 
-The status bar item reflects real-time gateway health:
+The status bar shows a connection icon and host. Its icon and hover card use the same snapshot, so failed model fetches stay visible. Disabled profiles do not affect overall connection health.
 
-- **States**: Displays active connection state (`probing`, `idle`, `streaming [active request count]`, `responded [token stats]`, `noModels`, or `error`).
-- **Interactive Tooltip**: Hovering over the status bar reveals a rich card showing:
-  - All configured provider profiles, active states, model counts, and capability badges (`tools`, `vision`, `inline`).
-  - Session token statistics (cumulative input, output, and reasoning tokens).
-  - Last request metrics and duration.
-  - Quick action links for **Refresh**, **Configure**, **Test Connection**, and **Output Log**.
+Hover over the status bar to see provider states and model counts, model capabilities, session token totals, the last request's usage, and quick actions for **Refresh**, **Configure**, **Test Connection**, and **Output Log**.
 
 ## Why This Over Native BYOK?
 
@@ -128,6 +123,19 @@ Route Copilot utility tasks (chat titles, commit messages) to your local or self
 ## Privacy
 
 Inference prompts and code context are transmitted directly to your configured provider endpoints only. API keys and headers are stored in VS Code SecretStorage.
+
+## Development
+
+Install dependencies with `bun install --frozen-lockfile`. Run `bun run lint`, `bun run test:compile`, and `bun run test`; `bun run test:coverage` adds coverage reporting. Build the extension with `bun run build:prod` or create a VSIX with `bun run package`.
+
+- `api/`: HTTP transport and wire types.
+- `chat/`: message conversion, token budgets, tool arguments, and response streaming.
+- `models/`: model metadata, reasoning picker schemas, and profile presentation.
+- `profiles/`: stored profiles, legacy migration, and model routing.
+- `provider/`: configuration and per-profile execution pipelines.
+- `commands/`: VS Code command and input flows.
+- `status/`: connection summaries, usage statistics, and snapshot rendering.
+- `completions/` and `discovery/`: inline completion logic and backend metadata discovery.
 
 ## Credits
 

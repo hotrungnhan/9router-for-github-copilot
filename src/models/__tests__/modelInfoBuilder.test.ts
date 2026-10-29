@@ -3,11 +3,9 @@ import assert from 'node:assert/strict';
 import {
   PROVIDER_DETAIL_LABEL,
   PROVIDER_MULTIPLIER_NUMERIC,
-  REASONING_TIER_KEYWORDS,
   buildModelInfo,
-  hasReasoningTierInName,
-  splitModelSegments,
 } from '../modelInfoBuilder';
+import { hasReasoningTierInName } from '../reasoningEffortSchema';
 import { TOKEN_CONSTANTS } from '../../chat/tokenBudget';
 import { OpenAIModel } from '../../api/types';
 
@@ -475,57 +473,6 @@ describe('buildModelInfo reasoning-effort configurationSchema', () => {
       'medium',
       'high',
     ]);
-  });
-});
-
-describe('hasReasoningTierInName keyword set', () => {
-  test('exports the documented tier tokens as an extensible array', () => {
-    assert.ok(Array.isArray(REASONING_TIER_KEYWORDS));
-    assert.ok(REASONING_TIER_KEYWORDS.includes('low'));
-    assert.ok(REASONING_TIER_KEYWORDS.includes('medium'));
-    assert.ok(REASONING_TIER_KEYWORDS.includes('high'));
-    assert.ok(REASONING_TIER_KEYWORDS.includes('extra'));
-    assert.ok(REASONING_TIER_KEYWORDS.includes('max'));
-    assert.ok(REASONING_TIER_KEYWORDS.includes('xhigh'));
-    assert.ok(REASONING_TIER_KEYWORDS.includes('thinking'));
-    assert.ok(REASONING_TIER_KEYWORDS.includes('agentic'));
-  });
-});
-
-describe('splitModelSegments', () => {
-  test('strips the provider prefix before the first slash', () => {
-    assert.deepEqual(
-      [...splitModelSegments('cu/claude-4.5-opus-high-thinking')],
-      ['claude', '4.5', 'opus', 'high', 'thinking'],
-    );
-  });
-
-  test('returns the full id when there is no slash', () => {
-    assert.deepEqual(
-      [...splitModelSegments('openai-o3')],
-      ['openai', 'o3'],
-    );
-  });
-
-  test('falls back to underscore splitting when a segment contains one', () => {
-    assert.deepEqual(
-      [...splitModelSegments('kr/claude_opus_5_agentic')],
-      ['claude', 'opus', '5', 'agentic'],
-    );
-  });
-
-  test('lowercases segments so the keyword lookup is case-insensitive', () => {
-    assert.deepEqual(
-      [...splitModelSegments('Claude-Opus-HIGH-Thinking')],
-      ['claude', 'opus', 'high', 'thinking'],
-    );
-  });
-
-  test('skips empty segments from leading or trailing delimiters', () => {
-    assert.deepEqual(
-      [...splitModelSegments('-claude-opus-')],
-      ['claude', 'opus'],
-    );
   });
 });
 

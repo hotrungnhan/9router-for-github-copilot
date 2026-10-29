@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   formatExposedModelId,
   parseModelTarget,
+  resolveInlineProfileId,
 } from '../modelNamespace';
 
 describe('formatExposedModelId', () => {
@@ -36,6 +37,12 @@ describe('parseModelTarget', () => {
     });
   });
 
+  test('preserves upstream prefixes matching the only active profile ID', () => {
+    assert.deepEqual(parseModelTarget('openai/gpt-5', ['openai'], 'openai'), {
+      profileId: 'openai', rawModelId: 'openai/gpt-5',
+    });
+  });
+
   test('handles model IDs containing additional slashes', () => {
     const result = parseModelTarget('cloud-9router/meta-llama/Llama-3-70b', knownProfiles, 'default');
     assert.deepEqual(result, {
@@ -66,5 +73,28 @@ describe('parseModelTarget', () => {
       profileId: 'custom-profile',
       rawModelId: 'some-model',
     });
+  });
+});
+
+describe('resolveInlineProfileId', () => {
+  const profiles = [
+    { id: 'disabled', enabled: false },
+    { id: 'local', enabled: true },
+    { id: 'cloud', enabled: true },
+  ];
+
+  test('defaults to the first enabled provider', () => {
+    assert.equal(resolveInlineProfileId(profiles, undefined), 'local');
+    assert.equal(resolveInlineProfileId(profiles, '  '), 'local');
+  });
+
+  test('uses an explicit enabled provider', () => {
+    assert.equal(resolveInlineProfileId(profiles, ' cloud '), 'cloud');
+  });
+
+  test('does not route a disabled or missing target to a different backend', () => {
+    assert.equal(resolveInlineProfileId(profiles, 'disabled'), undefined);
+    assert.equal(resolveInlineProfileId(profiles, 'missing'), undefined);
+    assert.equal(resolveInlineProfileId([], ''), undefined);
   });
 });

@@ -30,25 +30,6 @@ export function getChatLanguageModelsPath(): string {
 }
 
 /**
- * Check whether `chatLanguageModels.json` currently contains any groups for this vendor.
- */
-export function hasChatLanguageModelsGroups(configPath = getChatLanguageModelsPath()): boolean {
-  try {
-    if (!fs.existsSync(configPath)) {
-      return false;
-    }
-    const raw = fs.readFileSync(configPath, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      return false;
-    }
-    return parsed.some((g) => g && typeof g === 'object' && g.vendor === VENDOR_ID);
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Clean up legacy 9Router entries from `chatLanguageModels.json`, preserving other vendors.
  */
 export async function cleanupLegacyChatLanguageModelsGroups(

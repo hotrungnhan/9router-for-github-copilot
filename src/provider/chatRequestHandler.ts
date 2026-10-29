@@ -63,26 +63,6 @@ function discoveredSamplerOptions(
 const USAGE_DATA_PART_MIME_TYPE = 'usage';
 
 /**
- * Lifecycle event the status bar (and any other listener) consumes to render
- * live request state. Exactly one terminal event (`complete` or `error`)
- * follows every `start` event for the same request.
- */
-export type RequestStateEvent =
-  | { readonly kind: 'start'; readonly modelId: string; readonly modelName: string }
-  | {
-    readonly kind: 'complete';
-    readonly modelId: string;
-    readonly modelName: string;
-    readonly usage?: TokenUsage;
-  }
-  | {
-    readonly kind: 'error';
-    readonly modelId: string;
-    readonly modelName: string;
-    readonly errorMessage: string;
-  };
-
-/**
  * Format a tool's description for the output channel: trim, truncate at
  * MAX_TOOL_DESCRIPTION_LOG_LENGTH characters, and only append `...` when an
  * actual truncation happened. Returns `'(none)'` when the tool didn't supply
@@ -111,8 +91,6 @@ interface ChatRequestHandlerDeps {
   catalog: ModelCatalog;
   getConfig: () => GatewayConfig;
   log: (message: string) => void;
-  /** Fired on start / complete / error so the status bar renders live state. */
-  onRequestState: (event: RequestStateEvent) => void;
   /** Capture a successful request in the session totals / status dialog. */
   onCompleted: (modelId: string, modelName: string, usage: TokenUsage | undefined) => void;
   /** Opens the extension's output channel (used by error prompts). */
@@ -146,7 +124,6 @@ export class ChatRequestHandler {
     log(`Message count: ${messages.length}`);
 
     const modelName = friendlyModelName(model.id);
-    this.deps.onRequestState({ kind: 'start', modelId: model.id, modelName });
 
     const config = this.deps.getConfig();
     const openAIMessages = convertAllMessages(messages, config.enableImageInput, log);
@@ -321,19 +298,7 @@ export class ChatRequestHandler {
         await attempt();
       }
       this.deps.onCompleted(model.id, modelName, capturedUsage);
-      this.deps.onRequestState({
-        kind: 'complete',
-        modelId: model.id,
-        modelName,
-        usage: capturedUsage,
-      });
     } catch (error) {
-      this.deps.onRequestState({
-        kind: 'error',
-        modelId: model.id,
-        modelName,
-        errorMessage: error instanceof Error ? error.message : String(error),
-      });
       handleChatError(error, log, this.deps.showOutput);
     }
   }

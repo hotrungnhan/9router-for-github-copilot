@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   VENDOR_ID,
-  hasChatLanguageModelsGroups,
   cleanupLegacyChatLanguageModelsGroups,
   getChatLanguageModelsPath,
 } from '../groupSync';
@@ -28,7 +27,6 @@ describe('groupSync', () => {
   });
 
   it('handles a missing file without creating one', async () => {
-    assert.equal(hasChatLanguageModelsGroups(configPath), false);
     assert.equal(await cleanupLegacyChatLanguageModelsGroups(undefined, configPath), false);
     await assert.rejects(readFile(configPath), { code: 'ENOENT' });
   });
@@ -38,19 +36,16 @@ describe('groupSync', () => {
     await writeFile(configPath, JSON.stringify([
       { vendor: VENDOR_ID, name: 'old' }, other, null, { vendor: VENDOR_ID },
     ]));
-    assert.equal(hasChatLanguageModelsGroups(configPath), true);
     const logs: string[] = [];
     assert.equal(await cleanupLegacyChatLanguageModelsGroups((msg) => logs.push(msg), configPath), true);
     assert.deepEqual(JSON.parse(await readFile(configPath, 'utf8')), [other, null]);
     assert.match(logs[0], /Cleaned up 2/);
-    assert.equal(hasChatLanguageModelsGroups(configPath), false);
     assert.equal(await cleanupLegacyChatLanguageModelsGroups(undefined, configPath), false);
   });
 
   for (const contents of ['invalid json', '{"vendor":"9router-github-copilot"}', '[{"vendor":"other"}]']) {
     it(`leaves unsupported or unrelated contents unchanged: ${contents}`, async () => {
       await writeFile(configPath, contents);
-      assert.equal(hasChatLanguageModelsGroups(configPath), false);
       assert.equal(await cleanupLegacyChatLanguageModelsGroups(undefined, configPath), false);
       assert.equal(await readFile(configPath, 'utf8'), contents);
     });

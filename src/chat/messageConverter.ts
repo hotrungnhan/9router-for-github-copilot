@@ -193,8 +193,6 @@ export function convertMessage(
     result.push(...toolResults);
   } else if (userContent.length > 0) {
     result.push({ role: message.role, content: userContent });
-  } else if (textContent) {
-    result.push({ role: message.role, content: textContent });
   }
   return result;
 }

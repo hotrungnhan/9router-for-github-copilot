@@ -112,25 +112,9 @@ function renderProviders(snapshot: StatusSnapshot): string {
       status = 'Error';
     }
 
-    const feats: string[] = [];
-    if (p.features?.toolCalling) {
-      feats.push('tools');
-    }
-    if (p.features?.imageInput) {
-      feats.push('vision');
-    }
-    if (p.features?.inlineCompletion) {
-      feats.push('inline');
-    }
-    const featPills = feats
-      .map((f) => `<span style="color:var(--vscode-badge-foreground);background-color:var(--vscode-badge-background);border-radius:4px;">&nbsp;${esc(f)}&nbsp;</span>`)
-      .join('&nbsp;');
-
-    const meta = featPills ? `&nbsp;${featPills}` : '';
-
     return [
       '<tr>',
-      `<td>${icon}&nbsp;<strong>${esc(p.name)}</strong>${meta}</td>`,
+      `<td>${icon}&nbsp;<strong>${esc(p.name)}</strong></td>`,
       `<td align="right">${mutedSpan(esc(status))}</td>`,
       '</tr>',
     ].join('');

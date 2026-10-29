@@ -140,7 +140,7 @@ describe('pickReasoningEffort', () => {
         );
     });
 
-    test('caller optionsModelOptions snake_case wins over perModel camelCase', () => {
+    test('caller camelCase wins over perModel snake_case', () => {
         // Variant writes `reasoningEffort` (camelCase) into modelOptions; a user
         // who also sets `reasoning_effort` in perModelOptions is asking for the
         // picker's choice to win.

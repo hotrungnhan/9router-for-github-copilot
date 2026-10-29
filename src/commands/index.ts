@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
 import { GatewayProvider } from '../provider/gatewayProvider';
-import { StatusBarManager } from '../status/statusBarManager';
 import { manageProvidersFlow, addProviderFlow, pickProvider } from './manageProviders';
 import { editProfileCustomHeadersFlow } from './customHeaders';
+import { parseModelTarget } from '../profiles/modelNamespace';
+import { testConnectionFlow } from './testConnection';
 
 /**
  * Register user-facing commands contributed by the extension.
@@ -10,7 +11,6 @@ import { editProfileCustomHeadersFlow } from './customHeaders';
 export function registerCommands(
   context: vscode.ExtensionContext,
   provider: GatewayProvider,
-  statusManager: StatusBarManager,
   refreshStatusBar: () => Promise<void>
 ): void {
   const store = provider.getProfileStore();
@@ -33,60 +33,8 @@ export function registerCommands(
       addProviderFlow(store, provider, refreshStatusBar)
     ),
 
-    // Test Connection:
-    // If >1 profiles, ask which provider to test (or All).
-    // If 1 profile, test immediately.
-    vscode.commands.registerCommand(
-      '9router-for-github-copilot.testConnection',
-      async () => {
-        const selection = await pickProvider(store, '9Router: Test Connection', true);
-        if (!selection) {
-          return;
-        }
-
-        const cts = new vscode.CancellationTokenSource();
-        try {
-          if (selection === 'ALL') {
-            const models = await provider.provideLanguageModelChatInformation(
-              { silent: false },
-              cts.token
-            );
-            if (models.length > 0) {
-              statusManager.setIdle(models.map((m) => m.id));
-              vscode.window.showInformationMessage(
-                `9Router: All providers connected! Found ${models.length} model(s).`
-              );
-            } else {
-              statusManager.setNoModels();
-              vscode.window.showWarningMessage('9Router: Connected, but no models found.');
-            }
-          } else {
-            // Test single profile
-            provider.invalidateModelCache(selection.id);
-            const models = await provider.provideLanguageModelChatInformation(
-              { silent: false },
-              cts.token
-            );
-            const profileModels = models.filter((m) => m.detail === selection.name);
-            if (profileModels.length > 0) {
-              vscode.window.showInformationMessage(
-                `9Router [${selection.name}]: Connected! Found ${profileModels.length} model(s): ${profileModels.map((m) => m.name).join(', ')}`
-              );
-            } else {
-              vscode.window.showWarningMessage(
-                `9Router [${selection.name}]: Connected, but no models reported.`
-              );
-            }
-          }
-          await refreshStatusBar();
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error);
-          statusManager.setError(msg);
-          vscode.window.showErrorMessage(`9Router: Connection test failed. ${msg}`);
-        } finally {
-          cts.dispose();
-        }
-      }
+    vscode.commands.registerCommand('9router-for-github-copilot.testConnection',
+      (profileId?: string) => testConnectionFlow(provider, profileId)
     ),
 
     // Refresh Models:
@@ -154,13 +102,20 @@ export function registerCommands(
             label: '$(sparkle) Default (First available model)',
             description: 'Automatically pick the first model from the active server',
             modelId: '',
+            profileId: '',
           },
-          ...models.map((m) => ({
-            label: m.name || m.id,
-            description: m.detail ? `(${m.detail})` : m.id,
-            detail: m.id,
-            modelId: m.id,
-          })),
+          ...models.map((model) => {
+            const target = parseModelTarget(
+              model.id, store.getEnabledProfiles().map((profile) => profile.id), store.getDefaultProfile().id
+            );
+            return {
+              label: model.name || model.id,
+              description: model.detail ? `(${model.detail})` : model.id,
+              detail: model.id,
+              modelId: target.rawModelId,
+              profileId: target.profileId,
+            };
+          }),
         ];
 
         const selected = await vscode.window.showQuickPick(items, {
@@ -173,6 +128,7 @@ export function registerCommands(
         }
 
         const config = vscode.workspace.getConfiguration('9router-for-github-copilot');
+        await config.update('inlineCompletionProvider', selected.profileId, vscode.ConfigurationTarget.Global);
         await config.update(
           'inlineCompletionModel',
           selected.modelId,
