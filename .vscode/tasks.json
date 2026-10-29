@@ -2,9 +2,8 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "npm: build:watch",
-      "type": "npm",
-      "script": "build:watch",
+      "label": "bun: build:watch",
+      "type": "shell",
       "isBackground": true,
       "presentation": {
         "reveal": "always",
@@ -25,10 +24,15 @@
         },
         "background": {
           "activeOnStart": true,
-          "beginsPattern": "build started",
-          "endsPattern": "build finished"
+          "beginsPattern": "^Bundled",
+          "endsPattern": "extension\\.js\\.map.*\\(source map\\)"
         }
-      }
+      },
+      "command": "bun",
+      "args": [
+        "run",
+        "build:watch"
+      ]
     }
   ]
 }

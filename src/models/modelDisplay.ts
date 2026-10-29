@@ -60,7 +60,7 @@ export function parseModelId(id: string): ParsedModelId {
   return { provider, modelPart, displayName };
 }
 
-const FAMILY_KEYWORDS: Array<{ match: RegExp; family: string }> = [
+const FAMILY_KEYWORDS: readonly { match: RegExp; family: string }[] = [
   { match: /qwen/i, family: 'qwen' },
   { match: /llama/i, family: 'llama' },
   { match: /mistral/i, family: 'mistral' },

@@ -14,10 +14,9 @@ import {
   truncateMessagesToFit,
 } from '../chat/tokenBudget';
 import { tryRepairJson } from '../chat/jsonRepair';
-import { fillMissingRequiredProperties } from '../chat/toolSchema';
+import { fillMissingRequiredProperties, JsonSchema } from '../chat/toolSchema';
 import { pickReasoningEffort } from '../chat/reasoningEffort';
 import {
-  StreamChunk,
   StreamReporter,
   isEmptyStreamResult,
   streamResponse,
@@ -64,26 +63,6 @@ function discoveredSamplerOptions(
 const USAGE_DATA_PART_MIME_TYPE = 'usage';
 
 /**
- * Lifecycle event the status bar (and any other listener) consumes to render
- * live request state. Exactly one terminal event (`complete` or `error`)
- * follows every `start` event for the same request.
- */
-export type RequestStateEvent =
-  | { readonly kind: 'start'; readonly modelId: string; readonly modelName: string }
-  | {
-    readonly kind: 'complete';
-    readonly modelId: string;
-    readonly modelName: string;
-    readonly usage?: TokenUsage;
-  }
-  | {
-    readonly kind: 'error';
-    readonly modelId: string;
-    readonly modelName: string;
-    readonly errorMessage: string;
-  };
-
-/**
  * Format a tool's description for the output channel: trim, truncate at
  * MAX_TOOL_DESCRIPTION_LOG_LENGTH characters, and only append `...` when an
  * actual truncation happened. Returns `'(none)'` when the tool didn't supply
@@ -112,8 +91,6 @@ interface ChatRequestHandlerDeps {
   catalog: ModelCatalog;
   getConfig: () => GatewayConfig;
   log: (message: string) => void;
-  /** Fired on start / complete / error so the status bar renders live state. */
-  onRequestState: (event: RequestStateEvent) => void;
   /** Capture a successful request in the session totals / status dialog. */
   onCompleted: (modelId: string, modelName: string, usage: TokenUsage | undefined) => void;
   /** Opens the extension's output channel (used by error prompts). */
@@ -147,7 +124,6 @@ export class ChatRequestHandler {
     log(`Message count: ${messages.length}`);
 
     const modelName = friendlyModelName(model.id);
-    this.deps.onRequestState({ kind: 'start', modelId: model.id, modelName });
 
     const config = this.deps.getConfig();
     const openAIMessages = convertAllMessages(messages, config.enableImageInput, log);
@@ -286,7 +262,7 @@ export class ChatRequestHandler {
       });
       const chunks = this.deps.client.streamChatCompletion(requestOptions, token);
       const stats = await streamResponse({
-        chunks: chunks as AsyncIterable<StreamChunk>,
+        chunks,
         reporter,
         isCancelled: () => token.isCancellationRequested,
         resolveToolCallArgs: (toolCall) => this.resolveToolCallArgs(toolCall, toolSchemas),
@@ -322,19 +298,7 @@ export class ChatRequestHandler {
         await attempt();
       }
       this.deps.onCompleted(model.id, modelName, capturedUsage);
-      this.deps.onRequestState({
-        kind: 'complete',
-        modelId: model.id,
-        modelName,
-        usage: capturedUsage,
-      });
     } catch (error) {
-      this.deps.onRequestState({
-        kind: 'error',
-        modelId: model.id,
-        modelName,
-        errorMessage: error instanceof Error ? error.message : String(error),
-      });
       handleChatError(error, log, this.deps.showOutput);
     }
   }
@@ -357,9 +321,9 @@ export class ChatRequestHandler {
     options: vscode.ProvideLanguageModelChatResponseOptions
   ): {
     tools: OpenAIToolDefinition[] | undefined;
-    schemas: Map<string, Record<string, unknown> | undefined>;
+    schemas: Map<string, JsonSchema | undefined>;
   } {
-    const schemas = new Map<string, Record<string, unknown> | undefined>();
+    const schemas = new Map<string, JsonSchema | undefined>();
     if (!config.enableToolCalling || !options.tools || options.tools.length === 0) {
       return { tools: undefined, schemas };
     }
@@ -368,12 +332,12 @@ export class ChatRequestHandler {
       this.deps.log(`Tool: ${tool.name}`);
       this.deps.log(`  Description: ${formatToolDescription(tool.description)}`);
 
-      const schema = tool.inputSchema as Record<string, unknown> | undefined;
+      const schema = tool.inputSchema as JsonSchema | undefined;
       schemas.set(tool.name, schema);
 
-      if (schema?.required && Array.isArray(schema.required)) {
+      if (Array.isArray(schema?.required)) {
         this.deps.log(
-          `  Required properties: ${(schema.required as string[]).join(', ')}`
+          `  Required properties: ${schema.required.join(', ')}`
         );
       }
 
@@ -397,7 +361,7 @@ export class ChatRequestHandler {
    */
   private resolveToolCallArgs(
     toolCall: { id: string; name: string; arguments: string },
-    toolSchemas: Map<string, Record<string, unknown> | undefined>
+    toolSchemas: Map<string, JsonSchema | undefined>
   ): Record<string, unknown> {
     const { log } = this.deps;
     log(`\n=== TOOL CALL RECEIVED ===`);
@@ -467,14 +431,9 @@ export class ChatRequestHandler {
     for (let i = 0; i < openAIMessages.length; i++) {
       const msg = openAIMessages[i];
       const toolCallId = typeof msg.tool_call_id === 'string' ? msg.tool_call_id : 'none';
-      let hasContent: boolean;
-      if (typeof msg.content === 'string') {
-        hasContent = msg.content.length > 0;
-      } else if (Array.isArray(msg.content)) {
-        hasContent = msg.content.length > 0;
-      } else {
-        hasContent = msg.content !== null && msg.content !== undefined;
-      }
+      const hasContent = typeof msg.content === 'string' || Array.isArray(msg.content)
+        ? msg.content.length > 0
+        : msg.content !== null && msg.content !== undefined;
       const hasToolCalls = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0;
       this.deps.log(
         `  Message ${i + 1}: role=${msg.role}, hasContent=${hasContent}, hasToolCalls=${hasToolCalls}, toolCallId=${toolCallId}`

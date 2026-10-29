@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { GatewayConfig } from '../config/gatewayConfig';
 import { TOKEN_CONSTANTS } from '../chat/tokenBudget';
 import { Profile } from '../profiles/profileTypes';
+import { DEFAULT_MAX_PREFIX_CHARS, DEFAULT_MAX_SUFFIX_CHARS } from '../completions/inlineCompletion';
 import {
   ConfigIssue,
   DEFAULT_REQUEST_TIMEOUT_MS,
@@ -32,41 +33,38 @@ export class ConfigService {
   /**
    * Load configuration resolved for a given profile.
    */
-  public loadForProfile(profile: Profile, apiKeyOverride?: string): GatewayConfig {
-    const raw = this.readRawConfig(profile, apiKeyOverride);
+  public loadForProfile(profile: Profile): GatewayConfig {
+    const raw = this.readRawConfig(profile);
     const { config, issues } = validateGatewayConfig(raw);
     this.reportIssues(issues);
     return config;
   }
 
-  private readRawConfig(profile: Profile, apiKeyOverride?: string): GatewayConfig {
+  private readRawConfig(profile: Profile): GatewayConfig {
     const config = vscode.workspace.getConfiguration('9router-for-github-copilot');
     return {
       serverUrl: profile.serverUrl || FALLBACK_SERVER_URL,
-      apiKey: apiKeyOverride ?? profile.apiKey ?? '',
-      requestTimeout: config.get<number>('requestTimeout', DEFAULT_REQUEST_TIMEOUT_MS),
-      defaultMaxTokens: config.get<number>('defaultMaxTokens', TOKEN_CONSTANTS.DEFAULT_CONTEXT_TOKENS),
-      defaultMaxOutputTokens: config.get<number>(
-        'defaultMaxOutputTokens',
-        TOKEN_CONSTANTS.FALLBACK_OUTPUT_TOKENS
-      ),
-      enableImageInput: config.get<boolean>('enableImageInput', true),
-      enableToolCalling: config.get<boolean>('enableToolCalling', true),
-      parallelToolCalling: config.get<boolean>('parallelToolCalling', true),
-      agentTemperature: config.get<number>('agentTemperature', 0),
-      verboseLogging: config.get<boolean>('verboseLogging', false),
+      apiKey: profile.apiKey ?? '',
+      requestTimeout: config.get('requestTimeout', DEFAULT_REQUEST_TIMEOUT_MS),
+      defaultMaxTokens: config.get('defaultMaxTokens', TOKEN_CONSTANTS.DEFAULT_CONTEXT_TOKENS),
+      defaultMaxOutputTokens: config.get('defaultMaxOutputTokens', TOKEN_CONSTANTS.FALLBACK_OUTPUT_TOKENS),
+      enableImageInput: config.get('enableImageInput', true),
+      enableToolCalling: config.get('enableToolCalling', true),
+      parallelToolCalling: config.get('parallelToolCalling', true),
+      agentTemperature: config.get('agentTemperature', 0),
+      verboseLogging: config.get('verboseLogging', false),
       customHeaders: { ...(profile.customHeaders ?? {}) },
-      extraModelOptions: config.get<Record<string, unknown>>('extraModelOptions', {}) ?? {},
+      extraModelOptions: config.get<Record<string, unknown>>('extraModelOptions', {}),
       perModelOptions: config.get<Record<string, unknown>>('perModelOptions', {}) ?? {},
-      modelContextWindows: config.get<Record<string, number>>('modelContextWindows', {}) ?? {},
-      enableInlineCompletion: config.get<boolean>('enableInlineCompletion', false),
-      inlineCompletionProvider: config.get<string>('inlineCompletionProvider', ''),
-      inlineCompletionModel: config.get<string>('inlineCompletionModel', ''),
-      inlineCompletionMaxTokens: config.get<number>('inlineCompletionMaxTokens', 256),
-      inlineCompletionDebounce: config.get<number>('inlineCompletionDebounce', 300),
-      inlineCompletionTimeout: config.get<number>('inlineCompletionTimeout', 3000),
-      inlineCompletionMaxPrefixChars: config.get<number>('inlineCompletionMaxPrefixChars', 4000),
-      inlineCompletionMaxSuffixChars: config.get<number>('inlineCompletionMaxSuffixChars', 1000),
+      modelContextWindows: config.get<Record<string, number>>('modelContextWindows', {}),
+      enableInlineCompletion: config.get('enableInlineCompletion', false),
+      inlineCompletionProvider: config.get('inlineCompletionProvider', ''),
+      inlineCompletionModel: config.get('inlineCompletionModel', ''),
+      inlineCompletionMaxTokens: config.get('inlineCompletionMaxTokens', 256),
+      inlineCompletionDebounce: config.get('inlineCompletionDebounce', 300),
+      inlineCompletionTimeout: config.get('inlineCompletionTimeout', 3000),
+      inlineCompletionMaxPrefixChars: config.get('inlineCompletionMaxPrefixChars', DEFAULT_MAX_PREFIX_CHARS),
+      inlineCompletionMaxSuffixChars: config.get('inlineCompletionMaxSuffixChars', DEFAULT_MAX_SUFFIX_CHARS),
     };
   }
 

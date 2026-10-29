@@ -97,13 +97,12 @@ export function parseOllamaShowResponse(raw: unknown): OllamaModelInfo | undefin
 /** Map parsed Ollama metadata onto the backend-neutral discovery shape. */
 export function toDiscoveredModelInfo(info: OllamaModelInfo): DiscoveredModelInfo {
   const contextLength = info.numCtx ?? info.trainedContext;
-  let contextSource: string | undefined;
-  if (contextLength !== undefined) {
-    contextSource =
-      info.numCtx !== undefined
-        ? 'Ollama num_ctx (/api/show)'
-        : 'Ollama trained context (/api/show)';
-  }
+  const contextSource = contextLength !== undefined
+    ? info.numCtx !== undefined
+      ? 'Ollama num_ctx (/api/show)'
+      : 'Ollama trained context (/api/show)'
+    : undefined;
+
   return {
     contextLength,
     contextSource,

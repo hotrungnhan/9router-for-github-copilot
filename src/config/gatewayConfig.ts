@@ -1,8 +1,7 @@
 /**
  * Resolved extension configuration. Assembled by the provider's config
- * service from workspace settings, the SecretStorage cache, and any
- * framework-supplied overrides — everything downstream reads this shape
- * instead of touching `vscode.workspace.getConfiguration` directly.
+ * service from workspace settings and the selected provider profile. Downstream
+ * code reads this shape instead of touching `vscode.workspace.getConfiguration` directly.
  */
 export interface GatewayConfig {
   serverUrl: string;

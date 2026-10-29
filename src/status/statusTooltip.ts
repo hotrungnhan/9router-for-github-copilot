@@ -61,27 +61,20 @@ const TOOLTIP_MODEL_LIST_MAX = 8;
  */
 const PROGRESS_BAR_WIDTH = 40;
 
+const ESC_MAP: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+};
+
 /** HTML-escape user-controlled text. */
 export function esc(value: string | number | undefined | null): string {
   if (value === undefined || value === null) {
     return '';
   }
-  return String(value).replace(/[&<>"']/g, (c) => {
-    switch (c) {
-      case '&':
-        return '&amp;';
-      case '<':
-        return '&lt;';
-      case '>':
-        return '&gt;';
-      case '"':
-        return '&quot;';
-      case "'":
-        return '&#39;';
-      default:
-        return c;
-    }
-  });
+  return String(value).replace(/[&<>"']/g, (c) => ESC_MAP[c] ?? c);
 }
 
 /**
@@ -119,25 +112,9 @@ function renderProviders(snapshot: StatusSnapshot): string {
       status = 'Error';
     }
 
-    const feats: string[] = [];
-    if (p.features?.toolCalling) {
-      feats.push('tools');
-    }
-    if (p.features?.imageInput) {
-      feats.push('vision');
-    }
-    if (p.features?.inlineCompletion) {
-      feats.push('inline');
-    }
-    const featPills = feats
-      .map((f) => `<span style="color:var(--vscode-badge-foreground);background-color:var(--vscode-badge-background);border-radius:4px;">&nbsp;${esc(f)}&nbsp;</span>`)
-      .join('&nbsp;');
-
-    const meta = featPills ? `&nbsp;${featPills}` : '';
-
     return [
       '<tr>',
-      `<td>${icon}&nbsp;<strong>${esc(p.name)}</strong>${meta}</td>`,
+      `<td>${icon}&nbsp;<strong>${esc(p.name)}</strong></td>`,
       `<td align="right">${mutedSpan(esc(status))}</td>`,
       '</tr>',
     ].join('');

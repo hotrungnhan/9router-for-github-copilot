@@ -47,6 +47,8 @@ jobs:
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Cache Bun packages
         uses: actions/cache@v4
@@ -63,6 +65,9 @@ jobs:
 
       - name: Lint
         run: bun run lint
+
+      - name: Type check
+        run: bun run test:compile
 
       - name: Run tests
         run: bun run test
@@ -82,15 +87,10 @@ jobs:
       - name: Checkout extension
         uses: actions/checkout@v4
 
-      # Keep an explicit Node runtime because @vscode/vsce is primarily
-      # distributed and tested as a Node.js CLI.
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Cache Bun packages
         uses: actions/cache@v4
@@ -115,6 +115,9 @@ jobs:
 
       - name: Lint
         run: bun run lint
+
+      - name: Type check
+        run: bun run test:compile
 
       - name: Run tests
         run: bun run test

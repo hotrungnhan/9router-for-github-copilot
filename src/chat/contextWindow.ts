@@ -69,6 +69,13 @@ export function resolveContextWindowOverride(
   return wildcardMatch;
 }
 
+const CONTEXT_OVERFLOW_PATTERNS = [
+  /"n_ctx"\s*:\s*(\d+)/, // llama.cpp JSON field — most precise
+  /exceeds? the available context size \((\d+) tokens\)/i, // llama.cpp text
+  /maximum context length is (\d+) tokens/i, // OpenAI / vLLM / LM Studio
+  /context length of only (\d+) tokens/i, // vLLM (older wording)
+];
+
 /**
  * Parse a chat-completion error message for the context window the server
  * says it actually has. Returns the server-reported total context in tokens,
@@ -87,14 +94,7 @@ export function parseContextOverflowError(message: string): number | undefined {
     return undefined;
   }
 
-  const patterns = [
-    /"n_ctx"\s*:\s*(\d+)/, // llama.cpp JSON field — most precise
-    /exceeds? the available context size \((\d+) tokens\)/i, // llama.cpp text
-    /maximum context length is (\d+) tokens/i, // OpenAI / vLLM / LM Studio
-    /context length of only (\d+) tokens/i, // vLLM (older wording)
-  ];
-
-  for (const pattern of patterns) {
+  for (const pattern of CONTEXT_OVERFLOW_PATTERNS) {
     const match = pattern.exec(message);
     if (match) {
       const value = Number.parseInt(match[1], 10);

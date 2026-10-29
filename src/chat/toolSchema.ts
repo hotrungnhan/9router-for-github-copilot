@@ -13,7 +13,13 @@ const NOOP_LOGGER: SchemaLogger = () => {
   /* no-op */
 };
 
-type JsonSchema = Record<string, unknown>;
+export interface JsonSchema {
+  type?: string | string[];
+  default?: unknown;
+  required?: unknown;
+  properties?: Record<string, JsonSchema>;
+  [key: string]: unknown;
+}
 
 /**
  * Pick a default value for a JSON Schema type. Prefers `schema.default` when
@@ -69,12 +75,12 @@ export function fillMissingRequiredProperties(
     return args;
   }
 
-  const properties = (toolSchema.properties ?? {}) as Record<string, JsonSchema>;
+  const properties = toolSchema.properties ?? {};
   const filledArgs = { ...args };
   const filledProperties: string[] = [];
 
-  for (const requiredProp of toolSchema.required as string[]) {
-    if (!(requiredProp in filledArgs)) {
+  for (const requiredProp of toolSchema.required) {
+    if (typeof requiredProp === 'string' && !(requiredProp in filledArgs)) {
       const propSchema = properties[requiredProp];
       const defaultValue = getDefaultForType(propSchema);
       filledArgs[requiredProp] = defaultValue;

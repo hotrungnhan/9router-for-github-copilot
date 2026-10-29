@@ -20,10 +20,7 @@ import {
  * how the user typed their Server URL in settings.
  */
 export function normalizeBaseUrl(rawUrl: string): string {
-  let url = rawUrl.trim();
-  while (url.endsWith('/')) { url = url.slice(0, -1); }
-  url = url.replace(/\/(openai\/)?v1$/i, '');
-  return url;
+  return rawUrl.trim().replace(/\/+$/, '').replace(/\/(openai\/)?v1$/i, '');
 }
 
 /**
@@ -576,11 +573,8 @@ export class GatewayClient {
         DISCOVERY_PROBE_TIMEOUT_MS
       );
       if (!response.ok) { return false; }
-      const body: unknown = await response.json();
-      return (
-        typeof body === 'object' && body !== null &&
-        typeof (body as { version?: unknown }).version === 'string'
-      );
+      const body = await response.json() as { version?: unknown };
+      return typeof body?.version === 'string';
     } catch {
       return false;
     }
@@ -685,15 +679,15 @@ export function extractUsage(raw: unknown): OpenAIUsage | undefined {
 }
 
 function toNonNegativeNumber(value: unknown, fallback = 0): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) { return fallback; }
-  return value < 0 ? 0 : value;
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : fallback;
 }
 
 function extractServerErrorMessage(payload: { error?: unknown }): string {
   const err = payload.error;
   if (typeof err === 'string') { return err; }
-  if (err && typeof err === 'object' && 'message' in err && typeof (err as { message?: unknown }).message === 'string') {
-    return (err as { message: string }).message;
+  if (err && typeof err === 'object' && 'message' in err) {
+    const msg = (err as { message: unknown }).message;
+    if (typeof msg === 'string') { return msg; }
   }
   return JSON.stringify(err);
 }

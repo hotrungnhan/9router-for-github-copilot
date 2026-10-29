@@ -193,8 +193,6 @@ export function convertMessage(
     result.push(...toolResults);
   } else if (userContent.length > 0) {
     result.push({ role: message.role, content: userContent });
-  } else if (textContent) {
-    result.push({ role: message.role, content: textContent });
   }
   return result;
 }
@@ -208,9 +206,5 @@ export function convertMessages(
   options: MessageConverterOptions,
   log: ConverterLogger = NOOP_LOGGER
 ): OpenAIMessage[] {
-  const result: OpenAIMessage[] = [];
-  for (const msg of messages) {
-    result.push(...convertMessage(msg, options, log));
-  }
-  return result;
+  return messages.flatMap((msg) => convertMessage(msg, options, log));
 }

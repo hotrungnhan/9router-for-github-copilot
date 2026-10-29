@@ -1,4 +1,4 @@
-import { test, describe } from 'node:test';
+import { test, describe } from 'bun:test';
 import assert from 'node:assert/strict';
 import { migrateToProfiles } from '../profileMigration';
 import { PROFILES_SECRET_KEY, DEFAULT_PROFILE_ID, DEFAULT_PROFILE_NAME } from '../profileTypes';

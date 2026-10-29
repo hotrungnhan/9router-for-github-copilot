@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import {
-  convertMessage,
+  convertMessages,
   flattenToolResultContent,
   NormalizedMessage,
   NormalizedPart,
@@ -23,15 +23,11 @@ export function convertAllMessages(
   enableImageInput: boolean,
   log: Logger
 ): OpenAIMessage[] {
-  const result: OpenAIMessage[] = [];
-  for (const msg of messages) {
-    const normalized: NormalizedMessage = {
-      role: mapRole(msg.role),
-      parts: msg.content.map((part) => classifyPart(part, log)),
-    };
-    result.push(...convertMessage(normalized, { enableImageInput }, log));
-  }
-  return result;
+  const normalized: NormalizedMessage[] = messages.map((message) => ({
+    role: mapRole(message.role),
+    parts: message.content.map((part) => classifyPart(part, log)),
+  }));
+  return convertMessages(normalized, { enableImageInput }, log);
 }
 
 function mapRole(role: vscode.LanguageModelChatMessageRole): NormalizedRole {

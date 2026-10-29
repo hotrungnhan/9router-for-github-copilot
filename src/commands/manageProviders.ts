@@ -69,24 +69,11 @@ export async function manageProvidersFlow(
         statusInfo = ' · 0 models';
       }
 
-      const feats = summary?.features;
-      const featBadges: string[] = [];
-      if (feats?.toolCalling) {
-        featBadges.push('tools');
-      }
-      if (feats?.imageInput) {
-        featBadges.push('vision');
-      }
-      if (feats?.inlineCompletion) {
-        featBadges.push('inline');
-      }
-      const featInfo = featBadges.length > 0 ? ` · [${featBadges.join(', ')}]` : '';
-
       const headerCount = Object.keys(p.customHeaders ?? {}).length;
       const headersInfo = headerCount > 0 ? ` · ${headerCount} header(s)` : '';
       items.push({
         label: `${stateIcon} ${p.name}`,
-        description: `${p.serverUrl}${statusInfo}${featInfo}${headersInfo}`,
+        description: `${p.serverUrl}${statusInfo}${headersInfo}`,
         action: 'select',
         profile: p,
       });
@@ -118,6 +105,7 @@ export async function manageProvidersFlow(
     if (pick.action === 'add') {
       await addProviderFlow(store, provider, refreshStatusBar);
     } else if (pick.action === 'refresh') {
+      provider.invalidateModelCache();
       provider.refreshModels();
       await refreshStatusBar();
       vscode.window.setStatusBarMessage('9Router: Refreshed all provider model catalogs.', 3000);
@@ -258,60 +246,8 @@ async function editProviderFlow(
   }
 
   if (pick.action === 'test') {
-    await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: `9Router: Testing connection to "${current.name}"...`,
-        cancellable: true,
-      },
-      async (_progress, token) => {
-        const cts = new vscode.CancellationTokenSource();
-        token.onCancellationRequested(() => cts.cancel());
-        try {
-          const runtime = provider.getRuntime(current.id);
-          if (!runtime) {
-            vscode.window.showErrorMessage(`9Router: Runtime for "${current.name}" not found.`);
-            return;
-          }
-          runtime.catalog.invalidateCache();
-          const outcome = await runtime.catalog.getOrFetchModels(cts.token);
-          if (outcome.error) {
-            const action = await vscode.window.showErrorMessage(
-              `9Router [${current.name}]: Connection failed. ${outcome.error}`,
-              'Edit Server URL',
-              'Edit API Key'
-            );
-            if (action === 'Edit Server URL') {
-              const nextUrl = await vscode.window.showInputBox({
-                title: `9Router [${current.name}] — Server URL`,
-                value: current.serverUrl,
-                ignoreFocusOut: true,
-                validateInput: (v) => (URL.canParse(v) ? undefined : 'Please enter a valid URL'),
-              });
-              if (nextUrl) {
-                await store.saveProfile({ ...current, serverUrl: nextUrl.trim() });
-              }
-            } else if (action === 'Edit API Key') {
-              const nextKey = await vscode.window.showInputBox({
-                title: `9Router [${current.name}] — API Key`,
-                prompt: 'Enter API key',
-                password: true,
-                ignoreFocusOut: true,
-              });
-              if (nextKey !== undefined) {
-                await store.setApiKey(current.id, nextKey);
-              }
-            }
-          } else {
-            vscode.window.showInformationMessage(
-              `9Router [${current.name}]: Successfully connected! Found ${outcome.models.length} model(s).`
-            );
-          }
-        } finally {
-          cts.dispose();
-        }
-      }
-    );
+    await vscode.commands.executeCommand('9router-for-github-copilot.testConnection', current.id);
+    return true;
   } else if (pick.action === 'reload') {
     provider.invalidateModelCache(current.id);
     provider.refreshModels();
@@ -375,7 +311,7 @@ async function editProviderFlow(
 /**
  * Prompt user to select a provider profile.
  * - If 0 profiles: returns undefined.
- * - If 1 profile and !allowAll: automatically returns that profile without prompt.
+ * - If 1 profile: automatically returns that profile without prompt.
  * - If >1 profiles: prompts with a QuickPick.
  */
 export async function pickProvider(
@@ -387,7 +323,7 @@ export async function pickProvider(
   if (profiles.length === 0) {
     return undefined;
   }
-  if (profiles.length === 1 && !allowAll) {
+  if (profiles.length === 1) {
     return profiles[0];
   }
 
@@ -399,7 +335,7 @@ export async function pickProvider(
   if (allowAll) {
     items.push({
       label: '$(layers) All Providers',
-      description: `Test all ${profiles.length} provider(s)`,
+      description: 'All enabled providers',
       target: 'ALL',
     });
   }

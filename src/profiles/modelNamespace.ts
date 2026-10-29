@@ -34,7 +34,7 @@ export function formatExposedModelId(
  * Parse an incoming model ID from VS Code back to its target profile and raw model ID.
  *
  * Resolution order:
- * 1. If the ID starts with `${knownProfileId}/`, strip that prefix and route there.
+ * 1. With multiple active profiles, if the ID starts with `${knownProfileId}/`, strip that prefix and route there.
  * 2. If no prefix matches:
  *    a. If there is an active profile with id === fallbackProfileId, route there with rawId = modelId.
  *    b. Otherwise route to the first known profile ID, or return fallbackProfileId.
@@ -47,7 +47,7 @@ export function parseModelTarget(
   const trimmed = modelId.trim();
   const slashIndex = trimmed.indexOf('/');
 
-  if (slashIndex > 0) {
+  if (knownProfileIds.length > 1 && slashIndex > 0) {
     const candidateProfile = trimmed.slice(0, slashIndex);
     if (knownProfileIds.includes(candidateProfile)) {
       return {
@@ -66,4 +66,13 @@ export function parseModelTarget(
     profileId: resolvedProfile,
     rawModelId: trimmed,
   };
+}
+
+/** Explicit inline targets must be enabled; blank selects the first enabled profile. */
+export function resolveInlineProfileId(
+  profiles: readonly { id: string; enabled: boolean }[],
+  configuredId: string | undefined
+): string | undefined {
+  const id = configuredId?.trim();
+  return profiles.find((profile) => profile.enabled && (!id || profile.id === id))?.id;
 }

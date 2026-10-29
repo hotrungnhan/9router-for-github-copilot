@@ -1,7 +1,6 @@
 /**
- * Shared data model behind both the status-bar tooltip and the status webview
- * panel. Pure module — no `vscode` imports — so the snapshot shape and the
- * formatting helpers can be unit-tested without the editor.
+ * Shared data model and connection summaries for the status bar and its tooltip.
+ * Pure module so formatting and aggregation can be tested without the editor.
  */
 
 import { formatTokenCount } from './format';
@@ -16,9 +15,8 @@ export interface ProfileSummary {
   readonly enabled: boolean;
   readonly modelCount: number;
   readonly connectionState: ConnectionState;
+  readonly lastSuccessfulFetchAt?: number;
   readonly errorMessage?: string;
-  readonly models?: readonly ModelSummary[];
-  readonly features?: FeatureFlags;
 }
 
 export interface ModelSummary {
@@ -68,10 +66,7 @@ export interface StatusSnapshot {
  * ("131K ctx", "8K ctx", or `''` when unknown).
  */
 export function formatContextLabel(contextTokens: number | undefined): string {
-  if (!contextTokens || contextTokens <= 0) {
-    return '';
-  }
-  return `${formatTokenCount(contextTokens)} ctx`;
+  return contextTokens && contextTokens > 0 ? `${formatTokenCount(contextTokens)} ctx` : '';
 }
 
 /**
@@ -90,4 +85,25 @@ export function formatCapabilityLabels(capabilities: {
     labels.push('vision');
   }
   return labels;
+}
+
+/** Disabled profiles do not contribute to the gateway's connection health. */
+export function summarizeConnections(profiles: readonly ProfileSummary[]): {
+  connection: StatusSnapshot['connection'];
+  lastSuccessfulFetchAt?: number;
+} {
+  const enabled = profiles.filter((profile) => profile.enabled);
+  const healthy = enabled.filter((profile) => profile.connectionState === 'ok' || profile.connectionState === 'noModels');
+  const failed = enabled.find((profile) => profile.connectionState === 'error');
+  const state: ConnectionState = healthy.length > 0
+    ? healthy.some((profile) => profile.modelCount > 0) ? 'ok' : 'noModels'
+    : failed ? 'error' : 'unknown';
+  const timestamps = enabled.flatMap((profile) => profile.lastSuccessfulFetchAt === undefined ? [] : [profile.lastSuccessfulFetchAt]);
+  return {
+    connection: {
+      state,
+      ...(failed?.errorMessage ? { errorMessage: `[${failed.name}] ${failed.errorMessage}` } : {}),
+    },
+    ...(timestamps.length > 0 ? { lastSuccessfulFetchAt: Math.max(...timestamps) } : {}),
+  };
 }

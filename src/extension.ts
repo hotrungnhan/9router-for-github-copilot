@@ -3,6 +3,7 @@ import { GatewayProvider } from './provider/gatewayProvider';
 import { GatewayInlineCompletionProvider } from './completions/inlineCompletionProvider';
 import { StatusBarManager } from './status/statusBarManager';
 import { registerCommands } from './commands';
+import { cleanupLegacyChatLanguageModelsGroups } from './profiles/groupSync';
 
 const STATUS_BAR_PROBE_DELAY_MS = 1500;
 
@@ -15,6 +16,9 @@ const STATUS_BAR_PROBE_DELAY_MS = 1500;
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const provider = new GatewayProvider(context);
   await provider.loadSecrets();
+
+  // Clean up any stale chatLanguageModels.json entries left by earlier versions
+  await cleanupLegacyChatLanguageModelsGroups((msg) => provider.log(msg));
 
   context.subscriptions.push(
     vscode.lm.registerLanguageModelChatProvider('9router-github-copilot', provider),
@@ -31,20 +35,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     )
   );
 
-  // Status bar entry so users can see connection state at a glance and
-  // quickly refresh the model list. Without this, failed model fetches were
-  // invisible unless users happened to open the model picker. The visible
-  // label is context-aware (host when idle, model name during streaming,
-  // model + token count after) — see status/statusBarRenderer.ts.
   const statusBar = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
     100
   );
   statusBar.name = '9Router';
-  // Click refreshes the gateway. The rich GHCP-style popup is the hover
-  // tooltip — it's the closest stable-API approximation to a floating
-  // status-bar popup. Clicking is wired to a useful action so the bar
-  // isn't dead.
   statusBar.command = '9router-for-github-copilot.refreshModels';
   statusBar.show();
   context.subscriptions.push(statusBar);
@@ -54,40 +49,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     () => provider.getStatusSnapshot()
   );
   context.subscriptions.push(
-    statusManager,
-
-    // Live request state: streaming → responded → idle, with errors flashing in
-    // place. The provider fires `start` / `complete` / `error` events around
-    // each provideLanguageModelChatResponse call.
-    provider.onDidChangeRequestState((event) => statusManager.onRequest(event)),
-
-    // Rich hover tooltip is rebuilt from the provider's snapshot — refresh it
-    // whenever the snapshot changes (model refresh, request completion, session
-    // totals tick) so a hovering user always sees current numbers.
-    provider.onDidChangeStatusSnapshot(() => statusManager.refreshTooltip())
+    provider.onDidChangeStatusSnapshot(() => statusManager.refresh())
   );
 
-  /**
-   * Probe the gateway silently (no error toast) and render the result in the
-   * status bar. Uses the provider's cached fetch so it doesn't double-hit the
-   * server when VS Code is already asking for models.
-   */
   const refreshStatusBar = async (): Promise<void> => {
     const cts = new vscode.CancellationTokenSource();
     try {
-      const models = await provider.provideLanguageModelChatInformation(
-        { silent: true },
-        cts.token
-      );
-      if (models.length > 0) {
-        statusManager.setIdle(models.map((m) => m.id));
-      } else {
-        statusManager.setNoModels();
-      }
-    } catch (error) {
-      statusManager.setError(error instanceof Error ? error.message : String(error));
+      await provider.provideLanguageModelChatInformation({ silent: true }, cts.token);
     } finally {
       cts.dispose();
+      statusManager.refresh();
     }
   };
 
@@ -99,7 +70,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   }, STATUS_BAR_PROBE_DELAY_MS);
   context.subscriptions.push({ dispose: () => clearTimeout(initialProbeTimer) });
 
-  registerCommands(context, provider, statusManager, refreshStatusBar);
+  registerCommands(context, provider, refreshStatusBar);
+
+  // Copilot Chat is built into VS Code; activate opportunistically before initial model refresh
+  try {
+    await vscode.extensions.getExtension('github.copilot-chat')?.activate();
+  } catch {
+    // Copilot Chat may not be installed or enabled
+  }
+
+  // Trigger initial model cache refresh
+  provider.refreshModels();
 }
 
 /**
