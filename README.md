@@ -126,7 +126,9 @@ Inference prompts and code context are transmitted directly to your configured p
 
 ## Development
 
-Install dependencies with `bun install --frozen-lockfile`. Run `bun run lint`, `bun run test:compile`, and `bun run test`; `bun run test:coverage` adds coverage reporting. Build the extension with `bun run build:prod` or create a VSIX with `bun run package`.
+Requires VS Code 1.144 or newer for the current VS Code API types.
+
+Use Bun for dependencies, scripts, tests, and bundling. Install dependencies with `bun install --frozen-lockfile`. Run `bun run lint`, `bun run test:compile`, and `bun test`; `bun test --coverage` adds coverage reporting. Tests run directly from TypeScript with `bun:test`. Build the extension with `bun run build:prod` or create a VSIX with `bun run package`. The generated bundle targets Node because it runs inside VS Code’s extension host; development commands run with Bun.
 
 - `api/`: HTTP transport and wire types.
 - `chat/`: message conversion, token budgets, tool arguments, and response streaming.

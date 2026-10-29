@@ -22,7 +22,8 @@
     "resolveJsonModule": true,
     "moduleResolution": "nodenext",
     "types": [
-      "node"
+      "node",
+      "bun"
     ]
   },
   "include": [

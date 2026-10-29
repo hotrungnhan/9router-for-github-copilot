@@ -12,25 +12,21 @@
     "url": "https://github.com/hotrungnhan/9router-for-github-copilot.git"
   },
   "engines": {
-    "vscode": "^1.125.0"
+    "vscode": "^1.144.0"
   },
   "packageManager": "bun",
   "scripts": {
-    "vscode:prepublish": "bun run build:prod",
-    "base": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=es2020",
-    "build": "bun run base -- --sourcemap",
+    "base": "bun build ./src/extension.ts --outdir=out --external=vscode --format=cjs --target=node",
+    "build": "bun run base -- --sourcemap=external",
     "build:prod": "bun run base -- --minify",
-    "build:watch": "bun run base -- --sourcemap --watch",
-    "lint": "eslint \"src/**/*.ts\"",
-    "test:compile": "tsc -p ./ --noEmit",
-    "test:clean": "rm -rf out-test",
-    "test:build": "bun run test:clean && tsc -p tsconfig.test.json",
-    "test:run": "node --test \"out-test/**/*.test.js\"",
-    "test": "bun run test:build && bun run test:run",
-    "test:coverage": "bun run test:build && node --test --experimental-test-coverage \"out-test/**/*.test.js\"",
-    "package": "vsce package --no-yarn",
-    "deploy": "vsce publish --no-yarn",
-    "deploy:pre-release": "vsce publish --pre-release --no-yarn",
+    "build:watch": "bun run base -- --sourcemap=external --watch",
+    "lint": "bunx --bun --no-install eslint \"src/**/*.ts\"",
+    "test:compile": "bunx --bun --no-install tsc -p ./ --noEmit",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage",
+    "package": "bun run build:prod && bunx --bun --no-install vsce package --no-dependencies",
+    "deploy": "bun run build:prod && bunx --bun --no-install vsce publish --no-dependencies",
+    "deploy:pre-release": "bun run build:prod && bunx --bun --no-install vsce publish --pre-release --no-dependencies",
     "install:local": "code --install-extension ./9router-for-github-copilot-*.vsix --force"
   },
   "categories": [
@@ -231,14 +227,14 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^26.1.2",
-    "@types/vscode": "^1.125.0",
-    "@typescript-eslint/eslint-plugin": "^8.65.0",
-    "@typescript-eslint/parser": "^8.65.0",
+    "@types/bun": "^1.4.4",
+    "@types/node": "^26.6.6",
+    "@types/vscode": "^1.144.0",
+    "@typescript-eslint/eslint-plugin": "^8.72.1",
+    "@typescript-eslint/parser": "^8.72.1",
     "@typescript/native": "npm:typescript@^7.0.2",
-    "@vscode/vsce": "^3.9.2",
-    "esbuild": "^0.28.1",
-    "eslint": "^10.8.0",
+    "@vscode/vsce": "^4.1.0",
+    "eslint": "^10.13.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2"
   },
   "trustedDependencies": [

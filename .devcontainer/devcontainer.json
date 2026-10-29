@@ -1,6 +1,6 @@
 {
-  "name": "arbs.io-ts",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:latest",
+  "name": "9Router Bun",
+  "image": "oven/bun:latest",
   "customizations": {
     "vscode": {
       "settings": {
@@ -54,6 +54,6 @@
     }
   },
   "forwardPorts": [],
-  "postCreateCommand": "bun install",
-  "remoteUser": "node"
+  "postCreateCommand": "bun install --frozen-lockfile",
+  "remoteUser": "bun"
 }

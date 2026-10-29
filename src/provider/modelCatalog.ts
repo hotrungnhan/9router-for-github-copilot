@@ -28,7 +28,7 @@ interface ModelCatalogDeps {
  * the server's own overflow errors.
  *
  * Only uses `vscode` type imports so it stays unit-testable under
- * `node --test`.
+ * `bun test`.
  */
 export class ModelCatalog {
   /**

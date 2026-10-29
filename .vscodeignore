@@ -6,7 +6,6 @@ eslint.config.mjs
 **/*.map
 **/*.ts
 tsconfig.json
-tsconfig.test.json
 out-test/**
 out/**
 !out/extension.js
@@ -21,3 +20,4 @@ bun.lock
 .agents/**
 .codex/**
 .aws/**
+bunfig.toml

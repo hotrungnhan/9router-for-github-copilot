@@ -1,4 +1,4 @@
-import { test, describe } from 'node:test';
+import { test, describe, spyOn } from 'bun:test';
 import assert from 'node:assert/strict';
 import {
   CompletionHttpError,
@@ -230,8 +230,7 @@ describe('streamChatCompletion reasoning field handling (issue #59)', () => {
   }
 
   async function collectReasoning(lines: string[]): Promise<string[]> {
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = async () => sseResponse(lines);
+    const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValue(sseResponse(lines));
     try {
       const client = new GatewayClient(config);
       const reasoning: string[] = [];
@@ -243,7 +242,7 @@ describe('streamChatCompletion reasoning field handling (issue #59)', () => {
       }
       return reasoning;
     } finally {
-      globalThis.fetch = originalFetch;
+      fetchSpy.mockRestore();
     }
   }
 
