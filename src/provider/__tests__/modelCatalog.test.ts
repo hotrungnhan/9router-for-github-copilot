@@ -167,11 +167,125 @@ describe('ModelCatalog.getOrFetchModels', () => {
     assert.equal(h.catalog.getLastConnectionError(), undefined);
   });
 
-  test('does not cache results from a cancelled fetch', async () => {
+  test('does not report cancellation as a connection failure', async () => {
+    const token = fakeToken();
+    let rejectFetch!: (error: Error) => void;
+    const h = makeCatalog({
+      fetchModels: () => new Promise((_resolve, reject) => { rejectFetch = reject; }),
+    });
+    const pending = h.catalog.getOrFetchModels(token);
+    Object.assign(token, { isCancellationRequested: true });
+    rejectFetch(new Error('aborted'));
+    await pending;
+    assert.equal(h.catalog.getLastConnectionError(), undefined);
+    assert.equal(h.statusChanges, 0);
+  });
+
+  test('a cancelled caller does not receive cached models', async () => {
     const h = makeCatalog({
       fetchModels: () => Promise.resolve(modelsResponse({ id: 'a' })),
     });
-    const { models } = await h.catalog.getOrFetchModels(fakeToken(true));
+    await h.catalog.getOrFetchModels(fakeToken());
+    assert.deepEqual(await h.catalog.getOrFetchModels(fakeToken(true)), { models: [] });
+    assert.equal(h.fetchCalls, 1);
+  });
+
+  test('invalidation starts a fresh fetch and prevents stale results overwriting it', async () => {
+    let release!: (response: OpenAIModelsResponse) => void;
+    const h = makeCatalog({
+      fetchModels: () => h.fetchCalls === 1
+        ? new Promise((resolve) => { release = resolve; })
+        : Promise.resolve(modelsResponse({ id: 'new', contextLen: 8192 })),
+    });
+    const oldFetch = h.catalog.getOrFetchModels(fakeToken());
+    h.catalog.invalidateCache();
+    const fresh = await h.catalog.getOrFetchModels(fakeToken());
+    assert.deepEqual(fresh.models.map((m) => m.id), ['new']);
+    release(modelsResponse({ id: 'old', contextLen: 2048 }));
+    assert.deepEqual((await oldFetch).models, []);
+    assert.equal(h.fetchCalls, 2);
+    assert.deepEqual(h.catalog.getCachedModels().map((m) => m.id), ['new']);
+    assert.equal(h.catalog.getContextForModel('old'), undefined);
+    assert.equal(h.catalog.getContextForModel('new'), 8192);
+    assert.equal(h.statusChanges, 1);
+  });
+
+  test('a stale fetch failure does not overwrite the new connection state', async () => {
+    let rejectFetch!: (error: Error) => void;
+    const h = makeCatalog({
+      fetchModels: () => h.fetchCalls === 1
+        ? new Promise((_resolve, reject) => { rejectFetch = reject; })
+        : Promise.resolve(modelsResponse({ id: 'new' })),
+    });
+    const oldFetch = h.catalog.getOrFetchModels(fakeToken());
+    h.catalog.invalidateCache();
+    await h.catalog.getOrFetchModels(fakeToken());
+    rejectFetch(new Error('old server unavailable'));
+    await oldFetch;
+    assert.equal(h.catalog.getLastConnectionError(), undefined);
+    assert.equal(h.statusChanges, 1);
+  });
+
+  for (const cancel of [false, true]) {
+    test(`${cancel ? 'cancellation' : 'invalidation'} during discovery prevents stale metadata publication`, async () => {
+      const token = fakeToken();
+      let release!: (info: DiscoveredModelInfo) => void;
+      let started!: () => void;
+      const discovering = new Promise<void>((resolve) => { started = resolve; });
+      const h = makeCatalog({
+        fetchModels: () => Promise.resolve(modelsResponse({ id: 'old' })),
+        discovery: {
+          reset: () => undefined,
+          enrichModel: () => new Promise((resolve) => {
+            release = resolve;
+            started();
+          }),
+        },
+      });
+      const pending = h.catalog.getOrFetchModels(token);
+      await discovering;
+      if (cancel) {
+        Object.assign(token, { isCancellationRequested: true });
+      } else {
+        h.catalog.invalidateCache();
+      }
+      release({ contextLength: 8192, samplerParams: { temperature: 0.5 } });
+      assert.deepEqual((await pending).models, []);
+      assert.deepEqual(h.catalog.getCachedModels(), []);
+      assert.equal(h.catalog.getContextForModel('old'), undefined);
+      assert.equal(h.catalog.getDiscoveredParams('old'), undefined);
+      assert.equal(h.statusChanges, 0);
+    });
+  }
+
+  test('reset clears server-specific metadata and connection state', async () => {
+    const h = makeCatalog({
+      fetchModels: () => Promise.resolve(modelsResponse({ id: 'a', contextLen: 8192 })),
+      discovery: {
+        reset: () => undefined,
+        enrichModel: async () => ({ samplerParams: { temperature: 0.5 } }),
+      },
+    });
+    await h.catalog.getOrFetchModels(fakeToken());
+    h.catalog.learnContextSizeFromError(chatInfo('a', 8192), new Error('maximum context length is 4096 tokens'));
+    h.catalog.reset();
+    assert.deepEqual(h.catalog.getCachedModels(), []);
+    assert.equal(h.catalog.getContextForModel('a'), undefined);
+    assert.equal(h.catalog.getDiscoveredParams('a'), undefined);
+    assert.equal(h.catalog.getLastSuccessfulFetchAt(), undefined);
+    assert.equal(h.catalog.getLastConnectionError(), undefined);
+    assert.equal(h.catalog.resolveModelMaxContext(chatInfo('a', 16384)), 16384);
+  });
+
+  test('does not cache results from a cancelled fetch', async () => {
+    const token = fakeToken();
+    const h = makeCatalog({
+      fetchModels: async () => {
+        Object.assign(token, { isCancellationRequested: true });
+        return modelsResponse({ id: 'a' });
+      },
+    });
+    const { models } = await h.catalog.getOrFetchModels(token);
     assert.deepEqual(models, []);
     assert.equal(h.catalog.getLastSuccessfulFetchAt(), undefined);
     // Next (uncancelled) call must re-probe rather than see a stale empty list.

@@ -78,7 +78,7 @@ export class ProfileRuntime {
     this.currentConfig = nextConfig;
     this.client.updateConfig(this.currentConfig);
     this.inlineCompletions.resetSuffixProbe();
-    this.catalog.clearLearnedContexts();
+    this.catalog.reset();
     this.discovery.reset();
   }
 

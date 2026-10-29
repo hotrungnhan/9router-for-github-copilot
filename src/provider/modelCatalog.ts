@@ -37,6 +37,7 @@ export class ModelCatalog {
    * the status-bar probe, so rapid-fire calls don't stack HTTP requests
    * against the inference server.
    */
+  private generation = 0;
   private fetchInFlight?: Promise<LanguageModelChatInformation[]>;
   private fetchLast?: { at: number; result: LanguageModelChatInformation[] };
   /**
@@ -100,7 +101,19 @@ export class ModelCatalog {
    * the server. Called from the `Refresh Models` command.
    */
   public invalidateCache(): void {
+    this.generation++;
     this.fetchLast = undefined;
+    this.fetchInFlight = undefined;
+  }
+
+  /** Drop metadata and connection state when the profile configuration changes. */
+  public reset(): void {
+    this.invalidateCache();
+    this.clearLearnedContexts();
+    this.contextByModelId.clear();
+    this.discoveredByModelId.clear();
+    this.lastSuccessfulFetchAt = undefined;
+    this.lastConnectionError = undefined;
   }
 
   /** Called on config reload — a different server's learned sizes no longer apply. */
@@ -115,6 +128,10 @@ export class ModelCatalog {
   public async getOrFetchModels(
     token: CancellationToken
   ): Promise<{ models: LanguageModelChatInformation[]; error?: string }> {
+    if (token.isCancellationRequested) {
+      return { models: [] };
+    }
+    const generation = this.generation;
     const now = Date.now();
     const cacheTtlMs = 1000;
     if (this.fetchLast && now - this.fetchLast.at < cacheTtlMs) {
@@ -122,19 +139,23 @@ export class ModelCatalog {
     }
     if (this.fetchInFlight) {
       try {
-        return { models: await this.fetchInFlight };
+        const models = await this.fetchInFlight;
+        return { models: token.isCancellationRequested || generation !== this.generation ? [] : models };
       } catch (error) {
+        if (token.isCancellationRequested || generation !== this.generation) {
+          return { models: [] };
+        }
         return { models: [], error: error instanceof Error ? error.message : String(error) };
       }
     }
 
-    const inFlight = this.doFetchModels(token);
+    const inFlight = this.doFetchModels(token, generation);
     this.fetchInFlight = inFlight;
     try {
       const result = await inFlight;
       // Don't poison the cache with cancelled-empty results — the next caller
       // should re-probe instead of seeing a stale empty list.
-      if (!token.isCancellationRequested) {
+      if (!token.isCancellationRequested && generation === this.generation) {
         this.fetchLast = { at: Date.now(), result };
         this.lastSuccessfulFetchAt = Date.now();
         this.lastConnectionError = undefined;
@@ -143,6 +164,9 @@ export class ModelCatalog {
       return { models: result };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      if (token.isCancellationRequested || generation !== this.generation) {
+        return { models: [] };
+      }
       this.lastConnectionError = message;
       this.deps.onStatusChanged();
       return { models: [], error: message };
@@ -154,7 +178,8 @@ export class ModelCatalog {
   }
 
   private async doFetchModels(
-    token: CancellationToken
+    token: CancellationToken,
+    generation: number
   ): Promise<LanguageModelChatInformation[]> {
     const { log } = this.deps;
     log('Fetching models from inference server...');
@@ -167,7 +192,7 @@ export class ModelCatalog {
       throw error;
     }
 
-    if (token.isCancellationRequested) {
+    if (token.isCancellationRequested || generation !== this.generation) {
       return [];
     }
 
@@ -256,6 +281,10 @@ export class ModelCatalog {
         return info;
       })
     );
+
+    if (token.isCancellationRequested || generation !== this.generation) {
+      return [];
+    }
 
     // Swap in the rebuilt maps. If the server removed a model, its entry is
     // gone so stale data can't leak into future chat requests.

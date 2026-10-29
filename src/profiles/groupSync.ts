@@ -32,9 +32,8 @@ export function getChatLanguageModelsPath(): string {
 /**
  * Check whether `chatLanguageModels.json` currently contains any groups for this vendor.
  */
-export function hasChatLanguageModelsGroups(): boolean {
+export function hasChatLanguageModelsGroups(configPath = getChatLanguageModelsPath()): boolean {
   try {
-    const configPath = getChatLanguageModelsPath();
     if (!fs.existsSync(configPath)) {
       return false;
     }
@@ -53,10 +52,10 @@ export function hasChatLanguageModelsGroups(): boolean {
  * Clean up legacy 9Router entries from `chatLanguageModels.json`, preserving other vendors.
  */
 export async function cleanupLegacyChatLanguageModelsGroups(
-  log?: (msg: string) => void
+  log?: (msg: string) => void,
+  configPath = getChatLanguageModelsPath()
 ): Promise<boolean> {
   try {
-    const configPath = getChatLanguageModelsPath();
     if (!fs.existsSync(configPath)) {
       return false;
     }
