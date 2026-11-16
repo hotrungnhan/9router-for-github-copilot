@@ -7,6 +7,32 @@
  *    tool invocation doesn't crash on missing fields
  */
 
+export function agentToolDescription(name: string, description: string, hasTask: boolean): string {
+  if (!hasTask) { return description; }
+  const guidance: Record<string, string> = {
+    task: 'Launch new subagents with task. Use agent_type from the available agent types.',
+    write_agent: 'Follow up with existing agents only; never launch an agent here. To launch, use task. Provide exactly one of agent_id, agent_ids, or scope; omit unused selectors, including empty arrays.',
+    read_agent: 'Read existing agents using IDs returned by task. To launch a new agent, use task, not read_agent.',
+  };
+  return guidance[name] ? `${description}\n\n${guidance[name]}` : description;
+}
+
+export function normalizeAgentToolArgs(
+  name: string,
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  if (name !== 'write_agent') { return args; }
+  const normalized = { ...args };
+  // Empty selectors are placeholders, not recipients. Keep conflicting real recipients for host validation.
+  for (const key of ['agent_id', 'agent_ids', 'scope']) {
+    const value = normalized[key];
+    if (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) {
+      delete normalized[key];
+    }
+  }
+  return normalized;
+}
+
 type SchemaLogger = (message: string) => void;
 
 const NOOP_LOGGER: SchemaLogger = () => {
