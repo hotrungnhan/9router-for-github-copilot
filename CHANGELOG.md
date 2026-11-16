@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Reinforce Copilot subagent launch/follow-up semantics with task-aware descriptions and explicit non-strict function definitions.
+- Remove empty `write_agent` recipient placeholders without resolving conflicts between real recipients; add unit and HTTP/SSE regression coverage.
+
 ## 2.1.0 — 2026-10-29
 
 ### Highlights

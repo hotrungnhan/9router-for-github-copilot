@@ -14,7 +14,7 @@ import {
   truncateMessagesToFit,
 } from '../chat/tokenBudget';
 import { tryRepairJson } from '../chat/jsonRepair';
-import { fillMissingRequiredProperties, JsonSchema } from '../chat/toolSchema';
+import { agentToolDescription, fillMissingRequiredProperties, JsonSchema, normalizeAgentToolArgs } from '../chat/toolSchema';
 import { pickReasoningEffort } from '../chat/reasoningEffort';
 import {
   StreamReporter,
@@ -328,6 +328,7 @@ export class ChatRequestHandler {
       return { tools: undefined, schemas };
     }
 
+    const hasTask = options.tools.some((tool) => tool.name === 'task');
     const tools: OpenAIToolDefinition[] = options.tools.map((tool) => {
       this.deps.log(`Tool: ${tool.name}`);
       this.deps.log(`  Description: ${formatToolDescription(tool.description)}`);
@@ -345,8 +346,10 @@ export class ChatRequestHandler {
         type: 'function',
         function: {
           name: tool.name,
-          description: tool.description,
+          description: agentToolDescription(tool.name, tool.description ?? '', hasTask),
           parameters: tool.inputSchema,
+          // Responses backends otherwise default to strict mode, making optional selectors required.
+          strict: false,
         },
       };
     });
@@ -391,7 +394,7 @@ export class ChatRequestHandler {
     }
 
     log(`=== END TOOL CALL ===\n`);
-    return args;
+    return normalizeAgentToolArgs(toolCall.name, args);
   }
 
   private createStreamReporter(
