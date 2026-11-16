@@ -9,16 +9,6 @@ Connect **9Router** and multiple OpenAI-compatible inference backends to GitHub 
 3. In Copilot Chat, open the model picker → **Manage Models** → enable the models you want to use.
 4. Select a model and start chatting.
 
-## Copilot subagents
-
-The Copilot harness supplies the tool catalog. Use `task` to launch subagents and `read_agent` / `write_agent` for existing-agent operations. When `task` is available, the extension reinforces this distinction in tool descriptions; it does not rewrite custom-agent files or guarantee model tool selection.
-
-Function definitions explicitly send `strict: false` to preserve optional fields on Responses-backed endpoints. Original input schemas, including recipient `oneOf` constraints, remain unchanged. Returned `write_agent` calls drop only empty recipient placeholders (`null`, empty strings, empty arrays). Multiple non-empty selectors remain untouched for harness validation: the extension never guesses recipients or changes a targeted message into a broadcast.
-
-Use returned agent IDs for follow-ups, not agent names or types. See [VS Code customization migration](https://code.visualstudio.com/docs/agent-customization/migrate-customizations) and [microsoft/vscode#346797](https://github.com/microsoft/vscode/issues/346797).
-
-After installing an update, another open VS Code window can retain the old provider host serving shared BYOK requests. If reloading the current window does not activate the update, save work and fully exit all VS Code windows before reopening. **This interrupts active agent sessions.**
-
 ## Multi-Provider Support
 
 Connect and use multiple inference backends simultaneously (e.g. local Ollama, a remote vLLM cluster, and cloud 9Router).
