@@ -85,6 +85,7 @@ export interface OpenAIToolDefinition {
     name: string;
     description?: string;
     parameters?: unknown;
+    strict?: boolean;
   };
 }
 

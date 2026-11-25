@@ -1,6 +1,42 @@
 import { test, describe } from 'bun:test';
 import assert from 'node:assert/strict';
-import { fillMissingRequiredProperties, getDefaultForType } from '../toolSchema';
+import { agentToolDescription, fillMissingRequiredProperties, getDefaultForType, normalizeAgentToolArgs } from '../toolSchema';
+
+describe('Copilot agent tools', () => {
+  test('launch guidance requires task to be offered and preserves host descriptions', () => {
+    for (const name of ['task', 'read_agent', 'write_agent']) {
+      const description = agentToolDescription(name, 'Host instructions', true);
+      assert.ok(description.startsWith('Host instructions'));
+      assert.ok(description.includes('task'));
+      assert.equal(agentToolDescription(name, 'Host instructions', false), 'Host instructions');
+    }
+    assert.equal(agentToolDescription('other', 'unchanged', true), 'unchanged');
+  });
+
+  test('removes only empty write_agent selectors without mutating input', () => {
+    const args = { agent_id: 'existing-id', agent_ids: [], scope: null, message: 'continue' };
+    assert.deepEqual(normalizeAgentToolArgs('write_agent', args), {
+      agent_id: 'existing-id', message: 'continue',
+    });
+    assert.deepEqual(args.agent_ids, []);
+    assert.equal(args.scope, null);
+    assert.deepEqual(normalizeAgentToolArgs('write_agent', {
+      agent_id: '', agent_ids: ['existing-id'], scope: '', message: 'continue',
+    }), { agent_ids: ['existing-id'], message: 'continue' });
+    assert.deepEqual(normalizeAgentToolArgs('write_agent', {
+      agent_id: null, agent_ids: [], scope: 'children', message: 'continue',
+    }), { scope: 'children', message: 'continue' });
+  });
+
+  test('does not guess recipients or convert follow-ups to launches', () => {
+    const conflict = { agent_id: 'existing-id', scope: 'siblings', message: 'continue' };
+    assert.deepEqual(normalizeAgentToolArgs('write_agent', conflict), conflict);
+    assert.deepEqual(normalizeAgentToolArgs('write_agent', { agent_ids: [] }), {});
+    const task = { agent_type: 'explore', prompt: 'inspect', description: 'Inspect code' };
+    assert.equal(normalizeAgentToolArgs('task', task), task);
+    assert.equal(normalizeAgentToolArgs('read_agent', conflict), conflict);
+  });
+});
 
 describe('getDefaultForType', () => {
   test('returns null for null / undefined schema', () => {
