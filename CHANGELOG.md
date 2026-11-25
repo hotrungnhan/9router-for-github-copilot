@@ -1,9 +1,23 @@
 # Changelog
 
-## Unreleased
+## 2.1.1 — 2026-11-25
 
 - Reinforce Copilot subagent launch/follow-up semantics with task-aware descriptions and explicit non-strict function definitions.
 - Remove empty `write_agent` recipient placeholders without resolving conflicts between real recipients; add unit and HTTP/SSE regression coverage.
+- Fix HTTP/SSE regression probe cleanup order for Bun compatibility.
+
+### Compatibility
+
+- Requires VS Code 1.144.0 or newer.
+- After updating, restart all VS Code windows serving gateway requests so existing extension hosts load the fix. Save your work first; restarting can interrupt active agent sessions.
+
+### Validation
+
+- All 477 tests, TypeScript checking, ESLint, production build, and VSIX packaging verified.
+
+### Thanks
+
+Thanks to [@headsetsniper](https://github.com/headsetsniper) for diagnosing the Copilot subagent issue and contributing the fix and regression coverage in [#6](https://github.com/hotrungnhan/9router-for-github-copilot/pull/6).
 
 ## 2.1.0 — 2026-10-29
 
