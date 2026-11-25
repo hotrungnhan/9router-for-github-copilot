@@ -91,7 +91,9 @@ export async function run(): Promise<void> {
     assert.deepEqual(parts[3].input, replies[3].arguments);
     assert.equal(requests, replies.length);
   } finally {
-    server.closeAllConnections();
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+      server.closeAllConnections();
+    });
   }
 }
